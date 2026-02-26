@@ -176,9 +176,15 @@ interface TokenInput {
   $schema?: string;
   config?: {
     wcagTarget?: 'AA' | 'AAA';
-    complianceEngine?: 'wcag21' | 'apca';
+    /** 'apca' is not available until Phase 5. @default "wcag21" */
+    complianceEngine?: 'wcag21';
     /** @default "error" */
     onUnresolvedOverride?: 'error' | 'warn';
+    /**
+     * Background key to use when no data-bg attribute is found during DOM resolution.
+     * Must be a key in `backgrounds`. @default first key declared in `backgrounds`
+     */
+    defaultBg?: string;
   };
   /** Color ramps. Key = ramp name, value = hex strings ordered light → dark. Any length. */
   primitives: Record<string, string[]>;
@@ -344,7 +350,8 @@ function autoGenerateRules(
   // so that parseInt(fontSize, 10) gives the pixel value for ComplianceContext.
   //
   // v1 limitation: fontWeight is fixed at 400. Bold-text WCAG thresholds are not
-  // modelled in v1; teams can add manual overrides for bold large text if needed.
+  // modelled in v1. ContextOverrideInput has no fontWeight dimension, so this cannot
+  // be addressed via manual overrides in the current schema.
   const rules: ContextRule[] = [];
   for (const [bgName, bg] of backgrounds) {
     for (const fontSize of fontSizes) {
@@ -424,6 +431,8 @@ export type { TokenInput, SemanticInput, TokenRegistry, ComplianceEngine, ... } 
 - Confirm interaction state variants resolve per-context
 - Confirm <10μs per resolve call
 - Validate JSON schema rejects bad input
+- Confirm background fallback chain under a non-default vision mode finds a `default`-vision variant rather than dropping to `registry.defaults`
+- Confirm `resolveToken` with an unknown `bgClass` (no fallback chain) returns `registry.defaults[token]` and does not throw
 
 ### Phase 2: `@gamut-all/core` — Vite Plugin
 Build-time generation so consuming projects ship pre-computed registries.
@@ -478,7 +487,8 @@ export type RampName = 'neutral' | 'blue' | 'red' | 'orange' | 'green';
 
 **Test by:**
 - Nested StackLayers resolve tokens differently per layer
-- Missing `data-bg` emits dev warning and falls back to configured default
+- Missing `data-bg` emits a dev warning and resolves using `config.defaultBg` (or first-declared background if unset)
+- Background fallback chain under a non-default vision mode finds the correct default-vision variant rather than dropping to `registry.defaults`
 
 ### Phase 4: `@gamut-all/react` — Consumer Components + HOC
 
@@ -493,7 +503,7 @@ export type RampName = 'neutral' | 'blue' | 'red' | 'orange' | 'green';
 
 **`@gamut-all/core`:**
 - Vision-aware auto-rule generation (`autoGenerateRules` loops over vision modes)
-- APCA compliance engine (behind config flag; adds `apca.ts` + export)
+- APCA compliance engine: adds `apca.ts`, exports `apca`, and expands `complianceEngine` config union to `'wcag21' | 'apca'`
 
 **`@gamut-all/react`:**
 - `visionMode` in provider context + `setVisionMode()`
@@ -636,11 +646,17 @@ function resolveToken(token: string, context: DesignContext, registry: TokenRegi
     }
   }
 
-  // 4. Relax background using declared fallback chain from input/build metadata
+  // 4. Relax background using declared fallback chain — try current visionMode then 'default'
   for (const bg of registry.backgroundFallbacks[context.bgClass] ?? []) {
     const bKey = `${token}__${context.fontSize}__${bg}__root__${context.visionMode}`;
     const bFallback = registry.variantMap.get(bKey);
     if (bFallback) return bFallback.hex;
+
+    if (context.visionMode !== 'default') {
+      const bvKey = `${token}__${context.fontSize}__${bg}__root__default`;
+      const bvFallback = registry.variantMap.get(bvKey);
+      if (bvFallback) return bvFallback.hex;
+    }
   }
 
   // 5. Default
@@ -656,7 +672,7 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
 
 **Naming convention:** Semantic token names are converted from camelCase to kebab-case and prefixed with `--` (e.g., `fgPrimary` → `--fg-primary`, `fgLink` → `--fg-link`). Interaction variants append `-{state}` (e.g., `fgLink` hover → `--fg-link-hover`).
 
-**`:root` represents the default background:** The `:root` block contains values for the implicit default context (no `data-bg` attribute). Per-background overrides are declared as `[data-bg="…"]` attribute selectors. The background with the lowest ramp step (lightest) typically matches `:root`; if teams need an explicit default, a `defaultBg` config key may be added in a future version.
+**`:root` represents the default background:** The `:root` block contains values for the implicit default context (no `data-bg` attribute). Per-background overrides are declared as `[data-bg="…"]` attribute selectors. The background used for `:root` values is determined by `config.defaultBg`; if unset, the first background declared in `backgrounds` is used.
 
 ```css
 /* ── Base tokens ────────────────────────────────────────── */
@@ -1027,7 +1043,7 @@ packages/
 - **CSS/Figma/Style Dictionary parsers** — input is JSON.
 - **The token generator** — separate tool that produces ramp arrays.
 - **Runtime contrast computation** — registry builder picks steps at build time.
-- **Runtime background color sampling** — use declared context keys, not inferred DOM colors.\
+- **Runtime background color sampling** — use declared context keys, not inferred DOM colors.
 - **Framework adapters beyond React** — core is framework-agnostic; others are future packages.
 
 ## Success Criteria
