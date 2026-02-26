@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamut-all.dev/schema/token-input.json",
+  "title": "TokenInput",
+  "description": "Design token input for @gamut-all/core",
+  "type": "object",
+  "required": ["primitives", "backgrounds", "semantics"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wcagTarget": { "type": "string", "enum": ["AA", "AAA"] },
+        "complianceEngine": { "type": "string", "enum": ["wcag21"] },
+        "onUnresolvedOverride": { "type": "string", "enum": ["error", "warn"] },
+        "defaultBg": { "type": "string" }
+      }
+    },
+    "primitives": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        }
+      }
+    },
+    "backgrounds": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["ramp", "step"],
+        "additionalProperties": false,
+        "properties": {
+          "ramp": { "type": "string" },
+          "step": { "type": "integer", "minimum": 0 },
+          "fallback": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "semantics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["ramp", "defaultStep"],
+        "additionalProperties": false,
+        "properties": {
+          "ramp": { "type": "string" },
+          "defaultStep": { "type": "integer", "minimum": 0 },
+          "overrides": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/ContextOverrideInput" }
+          },
+          "interactions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["step"],
+              "additionalProperties": false,
+              "properties": {
+                "step": { "type": "integer", "minimum": 0 },
+                "overrides": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/ContextOverrideInput" }
+                }
+              }
+            }
+          },
+          "vision": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ramp": { "type": "string" },
+                "defaultStep": { "type": "integer", "minimum": 0 },
+                "overrides": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/ContextOverrideInput" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ContextOverrideInput": {
+      "type": "object",
+      "required": ["step"],
+      "additionalProperties": false,
+      "properties": {
+        "bg": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "fontSize": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "stack": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "step": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

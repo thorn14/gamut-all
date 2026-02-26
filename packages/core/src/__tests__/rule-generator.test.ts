@@ -1,0 +1,199 @@
+import { describe, it, expect } from 'vitest';
+import { findClosestPassingStep, autoGenerateRules, expandOverride, patchWithOverrides } from '../rule-generator.js';
+import { processInput } from '../processor.js';
+import { wcag21 } from '../compliance/wcag21.js';
+import type { TokenInput, ProcessedRamp } from '../types.js';
+import { ALL_FONT_SIZES, ALL_STACKS } from '../types.js';
+
+const neutralHexes = [
+  '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
+  '#a3a3a3', '#737373', '#525252', '#404040',
+  '#262626', '#171717',
+];
+
+const baseInput: TokenInput = {
+  primitives: { neutral: neutralHexes },
+  backgrounds: {
+    white: { ramp: 'neutral', step: 0 },
+    dark: { ramp: 'neutral', step: 8 },
+    inverse: { ramp: 'neutral', step: 9 },
+  },
+  semantics: {
+    fgSecondary: { ramp: 'neutral', defaultStep: 5 },
+  },
+};
+
+function getProcessed() {
+  return processInput(baseInput);
+}
+
+describe('findClosestPassingStep', () => {
+  const processed = getProcessed();
+  const neutral = processed.ramps.get('neutral')!;
+  const whiteBg = processed.backgrounds.get('white')!;
+
+  it('returns preferredStep if it passes', () => {
+    // Step 8 (#262626) easily passes AA on white
+    const result = findClosestPassingStep(
+      neutral, 8,
+      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      'darker',
+    );
+    expect(result).toBe(8);
+  });
+
+  it('searches darker when direction=darker', () => {
+    // Step 4 (#a3a3a3) fails AA on white — should find closer passing step going dark
+    const result = findClosestPassingStep(
+      neutral, 4,
+      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      'darker',
+    );
+    expect(result).not.toBeNull();
+    expect(result!).toBeGreaterThan(4);
+  });
+
+  it('searches lighter when direction=lighter', () => {
+    // On dark bg (#262626), step 5 (#737373) fails AA (~2.7:1).
+    // Searching lighter (toward index 0) should find step 4 (#a3a3a3) which passes (~5.2:1).
+    const darkBg = processed.backgrounds.get('dark')!;
+    const result = findClosestPassingStep(
+      neutral, 5,
+      (hex) => wcag21.evaluate(hex, darkBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      'lighter',
+    );
+    expect(result).not.toBeNull();
+    expect(result!).toBeLessThan(5);
+  });
+
+  it('returns null if no step passes in direction', () => {
+    // Create a tiny ramp where nothing passes
+    const tinyRamp: ProcessedRamp = {
+      name: 'tiny',
+      steps: [{ index: 0, hex: '#808080', oklch: { l: 0.5, c: 0, h: 0 }, relativeLuminance: 0.2 }],
+      stepCount: 1,
+    };
+    const result = findClosestPassingStep(tinyRamp, 0, () => false, 'darker');
+    expect(result).toBeNull();
+  });
+
+  it('either direction returns closer passing step', () => {
+    const result = findClosestPassingStep(
+      neutral, 5,
+      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      'either',
+    );
+    // Should find a passing step
+    expect(result).not.toBeNull();
+  });
+});
+
+describe('autoGenerateRules', () => {
+  it('generates rules for failing contexts', () => {
+    const processed = getProcessed();
+    const neutral = processed.ramps.get('neutral')!;
+    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, ALL_FONT_SIZES, ALL_STACKS);
+    // fgSecondary step 5 (#737373) may fail on some backgrounds
+    expect(Array.isArray(rules)).toBe(true);
+  });
+
+  it('all generated rules have stack=root', () => {
+    const processed = getProcessed();
+    const neutral = processed.ramps.get('neutral')!;
+    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, ALL_FONT_SIZES, ALL_STACKS);
+    for (const rule of rules) {
+      expect(rule.stack).toBe('root');
+    }
+  });
+
+  it('does not emit rules when defaultStep passes', () => {
+    // Step 8 (#262626) on white has 21:1 contrast — no rules needed
+    const processed = getProcessed();
+    const neutral = processed.ramps.get('neutral')!;
+    // Use only white background
+    const onlyWhite = new Map([['white', processed.backgrounds.get('white')!]]);
+    const rules = autoGenerateRules(neutral, 8, onlyWhite, wcag21, ALL_FONT_SIZES, ALL_STACKS);
+    expect(rules).toHaveLength(0);
+  });
+
+  it('emits rules for failing contexts (dark bg, light step)', () => {
+    // Step 5 (#737373) on dark bg (#262626): low contrast → need lighter step
+    const processed = getProcessed();
+    const neutral = processed.ramps.get('neutral')!;
+    const onlyDark = new Map([['dark', processed.backgrounds.get('dark')!]]);
+    const rules = autoGenerateRules(neutral, 5, onlyDark, wcag21, ALL_FONT_SIZES, ALL_STACKS);
+    // Should generate rules
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) {
+      expect(rule.step).not.toBe(5);
+    }
+  });
+
+  it('deduplicates rules with same bg+fontSize+stack', () => {
+    const processed = getProcessed();
+    const neutral = processed.ramps.get('neutral')!;
+    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, ALL_FONT_SIZES, ALL_STACKS);
+    const keys = rules.map(r => `${r.bg}__${r.fontSize}__${r.stack}`);
+    const unique = new Set(keys);
+    expect(keys.length).toBe(unique.size);
+  });
+});
+
+describe('expandOverride', () => {
+  const allBgs = ['white', 'dark', 'inverse'];
+  const allFontSizes = ALL_FONT_SIZES;
+  const allStacks = ALL_STACKS;
+
+  it('expands absent dimensions to all values', () => {
+    const rules = expandOverride({ step: 3 }, allBgs, allFontSizes, allStacks);
+    expect(rules).toHaveLength(allBgs.length * allFontSizes.length * allStacks.length);
+  });
+
+  it('respects specific bg', () => {
+    const rules = expandOverride({ bg: 'dark', step: 2 }, allBgs, allFontSizes, allStacks);
+    expect(rules.every(r => r.bg === 'dark')).toBe(true);
+    expect(rules).toHaveLength(allFontSizes.length * allStacks.length);
+  });
+
+  it('respects array bg', () => {
+    const rules = expandOverride({ bg: ['dark', 'inverse'], step: 1 }, allBgs, allFontSizes, allStacks);
+    expect(rules.every(r => r.bg === 'dark' || r.bg === 'inverse')).toBe(true);
+  });
+
+  it('respects specific fontSize and bg', () => {
+    const rules = expandOverride({ bg: 'dark', fontSize: '16px', step: 3 }, allBgs, allFontSizes, allStacks);
+    expect(rules.every(r => r.bg === 'dark' && r.fontSize === '16px')).toBe(true);
+    expect(rules).toHaveLength(allStacks.length);
+  });
+});
+
+describe('patchWithOverrides', () => {
+  const allBgs = ['white', 'dark', 'inverse'];
+
+  it('seeds from auto rules', () => {
+    const autoRules = [{ bg: 'dark', fontSize: '16px' as const, stack: 'root' as const, step: 2 }];
+    const map = patchWithOverrides(autoRules, [], allBgs, ALL_FONT_SIZES, ALL_STACKS);
+    expect(map.get('dark__16px__root')).toBe(2);
+  });
+
+  it('higher specificity override wins over lower', () => {
+    const autoRules = [{ bg: 'dark', fontSize: '16px' as const, stack: 'root' as const, step: 2 }];
+    const overrides = [
+      { bg: 'dark', step: 1 },               // specificity 1
+      { bg: 'dark', fontSize: '16px', step: 3 }, // specificity 2
+    ];
+    const map = patchWithOverrides(autoRules, overrides, allBgs, ALL_FONT_SIZES, ALL_STACKS);
+    // Higher specificity (2) wins
+    expect(map.get('dark__16px__root')).toBe(3);
+  });
+
+  it('later declaration wins on equal specificity', () => {
+    const overrides = [
+      { bg: 'dark', step: 1 }, // declared first
+      { bg: 'dark', step: 5 }, // declared later — same specificity
+    ];
+    const map = patchWithOverrides([], overrides, allBgs, ALL_FONT_SIZES, ALL_STACKS);
+    // Later wins
+    expect(map.get('dark__16px__root')).toBe(5);
+  });
+});
