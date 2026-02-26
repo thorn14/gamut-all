@@ -188,6 +188,14 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           errors.push(`config.defaultBg "${config['defaultBg']}" is not a key in backgrounds`);
         }
       }
+
+      if (config['stepSelectionStrategy'] !== undefined) {
+        if (typeof config['stepSelectionStrategy'] !== 'string') {
+          errors.push('config.stepSelectionStrategy must be a string');
+        } else if (config['stepSelectionStrategy'] !== 'closest' && config['stepSelectionStrategy'] !== 'mirror-closest') {
+          errors.push('config.stepSelectionStrategy must be one of: closest, mirror-closest');
+        }
+      }
     }
   }
 

@@ -53,4 +53,13 @@ describe('StackLayer', () => {
     );
     expect(screen.getByTestId('child').textContent).toBe('hello');
   });
+
+  it('omits data-bg when bg is not provided', () => {
+    wrap(
+      <StackLayer stack="card" data-testid="layer">
+        content
+      </StackLayer>
+    );
+    expect(screen.getByTestId('layer')).not.toHaveAttribute('data-bg');
+  });
 });

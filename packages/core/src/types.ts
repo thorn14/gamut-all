@@ -3,6 +3,7 @@
 export type FontSizeClass = '12px' | '14px' | '16px' | '20px' | '24px' | '32px';
 export type StackClass = 'root' | 'card' | 'popover' | 'tooltip' | 'modal' | 'overlay';
 export type VisionMode = 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'achromatopsia';
+export type StepSelectionStrategy = 'closest' | 'mirror-closest';
 
 export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', '24px', '32px'];
 export const ALL_STACKS: StackClass[] = ['root', 'card', 'popover', 'tooltip', 'modal', 'overlay'];
@@ -21,6 +22,7 @@ export interface TokenInput {
     complianceEngine?: 'wcag21' | 'apca';
     onUnresolvedOverride?: 'error' | 'warn';
     defaultBg?: string;
+    stepSelectionStrategy?: StepSelectionStrategy;
   };
   primitives: Record<string, string[]>;
   backgrounds: Record<string, BackgroundInput>;

@@ -15,7 +15,8 @@
         "wcagTarget": { "type": "string", "enum": ["AA", "AAA"] },
         "complianceEngine": { "type": "string", "enum": ["wcag21"] },
         "onUnresolvedOverride": { "type": "string", "enum": ["error", "warn"] },
-        "defaultBg": { "type": "string" }
+        "defaultBg": { "type": "string" },
+        "stepSelectionStrategy": { "type": "string", "enum": ["closest", "mirror-closest"] }
       }
     },
     "primitives": {

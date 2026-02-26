@@ -137,6 +137,7 @@ export function processInput(input: TokenInput): ProcessedInput {
     complianceEngine: inputConfig.complianceEngine ?? 'wcag21',
     onUnresolvedOverride: inputConfig.onUnresolvedOverride ?? 'error',
     defaultBg: inputConfig.defaultBg ?? firstBg,
+    stepSelectionStrategy: inputConfig.stepSelectionStrategy ?? 'closest',
   };
 
   if (!firstBg) {

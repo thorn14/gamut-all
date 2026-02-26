@@ -34,12 +34,22 @@ function buildVariantsForToken(
   backgrounds: Map<string, ProcessedBackground>,
   compliance: ComplianceEngine,
   wcagTarget: 'AA' | 'AAA',
+  stepSelectionStrategy: ProcessedInput['config']['stepSelectionStrategy'],
   visionMode: VisionMode,
   variantMap: Map<VariantKey, ResolvedVariant>,
 ): void {
   const allBgs = Array.from(backgrounds.keys());
 
-  const autoRules = autoGenerateRules(ramp, defaultStep, backgrounds, compliance, ALL_FONT_SIZES, ALL_STACKS);
+  const autoRules = autoGenerateRules(
+    ramp,
+    defaultStep,
+    backgrounds,
+    compliance,
+    wcagTarget,
+    ALL_FONT_SIZES,
+    ALL_STACKS,
+    stepSelectionStrategy,
+  );
   const patchedMap = patchWithOverrides(autoRules, overrides, allBgs, ALL_FONT_SIZES, ALL_STACKS);
 
   for (const [bgName, bg] of backgrounds) {
@@ -79,6 +89,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
   }
 
   const wcagTarget = processed.config.wcagTarget;
+  const stepSelectionStrategy = processed.config.stepSelectionStrategy;
 
   for (const [tokenName, semantic] of processed.semantics) {
     // Set default hex
@@ -96,6 +107,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
       processed.backgrounds,
       compliance,
       wcagTarget,
+      stepSelectionStrategy,
       'default',
       variantMap,
     );
@@ -117,6 +129,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         processed.backgrounds,
         compliance,
         wcagTarget,
+        stepSelectionStrategy,
         'default',
         variantMap,
       );
@@ -135,6 +148,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         processed.backgrounds,
         compliance,
         wcagTarget,
+        stepSelectionStrategy,
         visionMode,
         variantMap,
       );

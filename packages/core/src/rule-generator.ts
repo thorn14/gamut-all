@@ -6,6 +6,7 @@ import type {
   StackClass,
   ContextRule,
   ContextOverrideInput,
+  StepSelectionStrategy,
 } from './types.js';
 
 // ── findClosestPassingStep ───────────────────────────────────────────────────
@@ -76,8 +77,10 @@ export function autoGenerateRules(
   defaultStep: number,
   backgrounds: Map<string, ProcessedBackground>,
   compliance: ComplianceEngine,
+  wcagTarget: 'AA' | 'AAA',
   fontSizes: FontSizeClass[],
   stacks: StackClass[],
+  stepSelectionStrategy: StepSelectionStrategy = 'closest',
 ): ContextRule[] {
   // v1: only emit stack='root' entries — all stacks produce identical rules
   // (compliance is bgHex-dependent only)
@@ -91,7 +94,7 @@ export function autoGenerateRules(
         fontSizePx: parseInt(fontSize, 10),
         fontWeight: 400,
         target: 'text' as const,
-        level: 'AA' as const,
+        level: wcagTarget,
       };
 
       const baseStep = tokenRamp.steps[defaultStep];
@@ -100,6 +103,34 @@ export function autoGenerateRules(
       const baseEval = compliance.evaluate(baseStep.hex, bg.hex, context);
       if (baseEval.pass) continue;
 
+      const passes = (candidateHex: string) => compliance.evaluate(candidateHex, bg.hex, context).pass;
+
+      if (stepSelectionStrategy === 'mirror-closest') {
+        const mirroredStep = tokenRamp.steps.length - 1 - defaultStep;
+        const mirroredStepData = tokenRamp.steps[mirroredStep];
+
+        if (mirroredStepData) {
+          if (passes(mirroredStepData.hex) && mirroredStep !== defaultStep) {
+            const rule: ContextRule = { bg: bgName, fontSize, stack: 'root', step: mirroredStep };
+            rules.push(rule);
+            continue;
+          }
+
+          const closestToMirrored = findClosestPassingStep(
+            tokenRamp,
+            mirroredStep,
+            passes,
+            'either',
+          );
+
+          if (closestToMirrored !== null && closestToMirrored !== defaultStep) {
+            const rule: ContextRule = { bg: bgName, fontSize, stack: 'root', step: closestToMirrored };
+            rules.push(rule);
+            continue;
+          }
+        }
+      }
+
       const searchDirection =
         compliance.preferredDirection?.(bg.hex) ??
         (bg.relativeLuminance > 0.5 ? 'darker' : 'lighter');
@@ -107,7 +138,7 @@ export function autoGenerateRules(
       const passingStep = findClosestPassingStep(
         tokenRamp,
         defaultStep,
-        (candidateHex) => compliance.evaluate(candidateHex, bg.hex, context).pass,
+        passes,
         searchDirection,
       );
 

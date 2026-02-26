@@ -79,16 +79,18 @@ describe('processInput', () => {
     expect(result.config.complianceEngine).toBe('wcag21');
     expect(result.config.onUnresolvedOverride).toBe('error');
     expect(result.config.defaultBg).toBe('white'); // first background
+    expect(result.config.stepSelectionStrategy).toBe('closest');
   });
 
   it('respects explicit config', () => {
     const input: TokenInput = {
       ...minimalInput,
-      config: { wcagTarget: 'AAA', defaultBg: 'dark' },
+      config: { wcagTarget: 'AAA', defaultBg: 'dark', stepSelectionStrategy: 'mirror-closest' },
     };
     const result = processInput(input);
     expect(result.config.wcagTarget).toBe('AAA');
     expect(result.config.defaultBg).toBe('dark');
+    expect(result.config.stepSelectionStrategy).toBe('mirror-closest');
   });
 
   it('throws on invalid input', () => {

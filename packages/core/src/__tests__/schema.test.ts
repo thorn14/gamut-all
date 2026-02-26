@@ -295,4 +295,15 @@ describe('validateSchema — config', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('defaultBg must be a string'))).toBe(true);
   });
+
+  it('accepts valid stepSelectionStrategy', () => {
+    const result = validateSchema({ ...base, config: { stepSelectionStrategy: 'mirror-closest' } });
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects invalid stepSelectionStrategy', () => {
+    const result = validateSchema({ ...base, config: { stepSelectionStrategy: 'something-else' } });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('config.stepSelectionStrategy'))).toBe(true);
+  });
 });

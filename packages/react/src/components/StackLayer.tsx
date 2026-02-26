@@ -3,7 +3,7 @@ import type { StackClass } from '@gamut-all/core';
 
 interface StackLayerProps extends HTMLAttributes<HTMLElement> {
   stack: StackClass;
-  bg: string;
+  bg?: string;
   as?: ElementType;
   children?: ReactNode;
 }

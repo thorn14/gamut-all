@@ -20,5 +20,6 @@ export type {
   FontSizeClass,
   StackClass,
   VisionMode,
+  StepSelectionStrategy,
 } from './types.js';
 export { ALL_FONT_SIZES, ALL_STACKS, ALL_VISION_MODES } from './types.js';
