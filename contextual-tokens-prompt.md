@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Two npm packages that resolve semantic color tokens (like `fgSecondary`) to specific values from color ramps based on runtime context — font size, effective background color, stacking depth, and vision mode. Any team plugs in their own tokens via a single JSON file. The system builds a pre-computed lookup table and guarantees WCAG compliance through ramp-step selection, not runtime color math.
+Two primary npm packages that resolve semantic color tokens (like `fgSecondary`) to specific values from color ramps based on context keys: font size class, declared background class, stack layer, and vision mode. Any team plugs in their own tokens via a single JSON file. The system builds a pre-computed lookup table and guarantees accessibility through ramp-step selection, not runtime color math. An optional third package provides CI audits.
 
 ### Package Split
 
@@ -23,8 +23,7 @@ Two npm packages that resolve semantic color tokens (like `fgSecondary`) to spec
 - `<StackLayer>`, `<TokenizedText>`, `<TokenizedContainer>`
 - `withAutoContrast` HOC, `<TokenResolver>` render prop
 - `<TokenInspector>` dev overlay
-- DOM context detection (font size, background, stack depth)
-- Environment sensor hooks (ambient light, prefers-contrast)
+- DOM context binding (reads declared context keys and inheritance)
 
 The boundary: **core owns the math and the data, react owns the DOM and the component model.** A Vue or Svelte adapter would import core and build its own reactive layer.
 
@@ -32,12 +31,13 @@ The boundary: **core owns the math and the data, react owns the DOM and the comp
 
 ## Key Constraints
 
-- **No color manipulation at runtime.** Resolution is a Map lookup against pre-computed variants.
+- **No color manipulation or background inference at runtime.** Runtime resolution is Map lookup only.
 - **OKLCH internally.** The system converts input hex to OKLCH for perceptual ordering and luminance. Teams provide hex; the system does the conversion during registry build.
 - **Pluggable via one JSON file.** Teams don't adopt a framework — they describe their tokens and the system does the rest.
 - **Color blindness is a context dimension**, not a filter. Different vision modes select different ramp steps or entirely different ramps.
-- **Compliance engine is swappable.** WCAG 2.1 today, APCA tomorrow — without touching resolution logic or token definitions.
-- **Color only.** Spacing, radius, elevation, and other non-color tokens are out of scope. They don't have contrast compliance math and don't benefit from the ramp-step resolution model.
+- **Compliance engine is swappable through a neutral contract.** WCAG 2.1 today, APCA tomorrow, no resolver rewrite.
+- **Text color tokens only in v1.** Non-text/image/icon/border token compliance is deferred to a later phase.
+- **Color only.** Spacing, radius, elevation, and other non-color tokens are out of scope.
 
 ---
 
@@ -84,7 +84,7 @@ The package publishes a JSON schema at `@gamut-all/core/schema.json` so teams ge
 }
 ```
 
-That's the minimum. No overrides, no vision modes, no roles — the system auto-generates context rules by walking each ramp to find compliant steps per background. Defaults to `role: "text"` for all tokens.
+That's the minimum. No overrides and no vision modes. The system auto-generates text contrast rules by walking each ramp to find compliant steps per background.
 
 ### Full Example (with all optional fields)
 
@@ -94,7 +94,8 @@ That's the minimum. No overrides, no vision modes, no roles — the system auto-
 
   "config": {
     "wcagTarget": "AA",
-    "complianceEngine": "wcag21"
+    "complianceEngine": "wcag21",
+    "onUnresolvedOverride": "error"
   },
 
   "primitives": {
@@ -106,18 +107,17 @@ That's the minimum. No overrides, no vision modes, no roles — the system auto-
   },
 
   "backgrounds": {
-    "white":   { "ramp": "neutral", "step": 0 },
-    "light":   { "ramp": "neutral", "step": 1 },
-    "card":    { "ramp": "neutral", "step": 2 },
-    "dark":    { "ramp": "neutral", "step": 8 },
-    "inverse": { "ramp": "neutral", "step": 9 }
+    "white":   { "ramp": "neutral", "step": 0, "fallback": ["light", "card"], "aliases": ["bg-white", "surface-0"] },
+    "light":   { "ramp": "neutral", "step": 1, "fallback": ["white", "card"], "aliases": ["bg-light", "surface-1"] },
+    "card":    { "ramp": "neutral", "step": 2, "fallback": ["light", "white"], "aliases": ["bg-card", "surface-card"] },
+    "dark":    { "ramp": "neutral", "step": 8, "fallback": ["inverse"], "aliases": ["bg-dark", "surface-dark"] },
+    "inverse": { "ramp": "neutral", "step": 9, "fallback": ["dark"], "aliases": ["bg-inverse", "surface-inverse"] }
   },
 
   "semantics": {
     "fgPrimary": {
       "ramp": "neutral",
       "defaultStep": 8,
-      "role": "text",
       "overrides": [
         { "bg": ["dark", "inverse"], "step": 1 },
         { "bg": ["dark", "inverse"], "fontSize": ["24px", "32px"], "step": 2 },
@@ -127,7 +127,6 @@ That's the minimum. No overrides, no vision modes, no roles — the system auto-
     "fgSecondary": {
       "ramp": "neutral",
       "defaultStep": 5,
-      "role": "text",
       "overrides": [
         { "bg": "light", "step": 6 },
         { "bg": "card", "step": 6 },
@@ -136,14 +135,13 @@ That's the minimum. No overrides, no vision modes, no roles — the system auto-
         { "bg": "white", "fontSize": ["24px", "32px"], "step": 4 }
       ]
     },
-    "fgTertiary":  { "ramp": "neutral", "defaultStep": 4, "role": "text" },
-    "fgAccent":    { "ramp": "blue",    "defaultStep": 6, "role": "text" },
-    "fgDisabled":  { "ramp": "neutral", "defaultStep": 3, "role": "text" },
-    "fgInverse":   { "ramp": "neutral", "defaultStep": 1, "role": "text" },
+    "fgTertiary":  { "ramp": "neutral", "defaultStep": 4 },
+    "fgAccent":    { "ramp": "blue",    "defaultStep": 6 },
+    "fgDisabled":  { "ramp": "neutral", "defaultStep": 3 },
+    "fgInverse":   { "ramp": "neutral", "defaultStep": 1 },
     "fgLink": {
       "ramp": "blue",
       "defaultStep": 6,
-      "role": "text",
       "interactions": {
         "hover":  { "step": 8 },
         "active": { "step": 9 },
@@ -153,7 +151,6 @@ That's the minimum. No overrides, no vision modes, no roles — the system auto-
     "fgError": {
       "ramp": "red",
       "defaultStep": 6,
-      "role": "text",
       "vision": {
         "deuteranopia": { "ramp": "orange", "defaultStep": 7 },
         "protanopia":   { "ramp": "orange", "defaultStep": 7 }
@@ -162,34 +159,10 @@ That's the minimum. No overrides, no vision modes, no roles — the system auto-
     "fgSuccess": {
       "ramp": "green",
       "defaultStep": 6,
-      "role": "text",
       "vision": {
         "deuteranopia": { "ramp": "blue", "defaultStep": 6 },
         "protanopia":   { "ramp": "blue", "defaultStep": 6 }
       }
-    },
-    "fgIcon": {
-      "ramp": "neutral",
-      "defaultStep": 4,
-      "role": "non-text",
-      "overrides": [
-        { "bg": ["dark", "inverse"], "step": 3 }
-      ]
-    },
-    "fgIconAccent": {
-      "ramp": "blue",
-      "defaultStep": 5,
-      "role": "non-text"
-    },
-    "fgBorder": {
-      "ramp": "neutral",
-      "defaultStep": 3,
-      "role": "non-text"
-    },
-    "fgBorderAccent": {
-      "ramp": "blue",
-      "defaultStep": 4,
-      "role": "non-text"
     }
   }
 }
@@ -204,23 +177,28 @@ interface TokenInput {
   config?: {
     wcagTarget?: 'AA' | 'AAA';
     complianceEngine?: 'wcag21' | 'apca';
+    /** @default "error" */
+    onUnresolvedOverride?: 'error' | 'warn';
   };
   /** Color ramps. Key = ramp name, value = hex strings ordered light → dark. Any length. */
   primitives: Record<string, string[]>;
-  /** Named backgrounds. Each points to a ramp + step index. */
-  backgrounds: Record<string, { ramp: string; step: number }>;
-  /** Semantic tokens. Ramp + default step, optional overrides, vision modes, interactions, role. */
+  /** Named backgrounds. Optional fallback/aliases avoid runtime color guessing. */
+  backgrounds: Record<string, BackgroundInput>;
+  /** Semantic tokens. Ramp + default step, optional overrides, vision modes, interactions. */
   semantics: Record<string, SemanticInput>;
+}
+
+interface BackgroundInput {
+  ramp: string;
+  step: number;
+  fallback?: string[];   // resolution fallback order
+  aliases?: string[];    // optional CSS class/var aliases for CI audits
 }
 
 type SemanticInput = {
   ramp: string;
   defaultStep: number;
-  /** 'text' = WCAG 1.4.3 (size-dependent thresholds).
-   *  'non-text' = WCAG 1.4.11 (3:1 always, font size ignored).
-   *  Default: 'text'. */
-  role?: 'text' | 'non-text';
-  /** Manual context overrides. If omitted, system auto-generates rules. */
+  /** Manual context patches layered on top of auto-generated coverage. */
   overrides?: ContextOverrideInput[];
   /** Interaction state step variants. Each produces a --token-{state} CSS var. */
   interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
@@ -240,34 +218,65 @@ interface ContextOverrideInput {
 }
 ```
 
-### Token Roles: Text vs Non-Text
+### Scope in v1
 
-The `role` field determines which WCAG success criterion applies:
+This contract covers **text color tokens only** (`WCAG 2.1 1.4.3` behavior by default).  
+Non-text/image/icon/border tokens are intentionally deferred so the first implementation stays coherent and predictable.
 
-| Role | WCAG Criterion | Contrast Requirement | Font Size Matters? |
-|------|----------------|---------------------|-------------------|
-| `text` (default) | 1.4.3 Contrast (Minimum) | 4.5:1 normal, 3:1 large text | Yes |
-| `non-text` | 1.4.11 Non-text Contrast | 3:1 always | No |
+### Coverage and Override Model
 
-**`text`** tokens: foreground text colors. Contrast threshold varies by font size (and weight). Auto-rule generator produces variants across all font size × background combinations.
+Override behavior is deterministic and easy to explain:
 
-**`non-text`** tokens: icons, borders, form controls, graphical indicators. 3:1 regardless of size. Auto-rule generator skips the font-size dimension entirely, reducing variant count by 6× for these tokens.
+1. Build a full baseline matrix from auto-generation for every token across background × font size × stack × vision.
+2. Apply `overrides` as patches on top of that matrix.
+3. Re-validate the final matrix.
 
-The compliance engine receives the role:
+Specificity and precedence:
+- Specificity is the count of dimensions matched: a 3-dimension match (`bg+fontSize+stack`) beats a 2-dimension match (`bg+fontSize`, `bg+stack`, `fontSize+stack`), which beats a 1-dimension match (`bg`, `fontSize`, `stack`).
+- Ties (equal dimension count) are resolved by declaration order (last wins).
+- Unknown targets in overrides fail build by default (`onUnresolvedOverride: "error"`), or warn if configured.
+
+### Background Classification Strategy (No Hue/Chroma Adjustment)
+
+For v1, do not infer background classes from sampled DOM colors.  
+Use declared background keys and inheritance (`data-bg`), then fallback chains from `backgrounds[*].fallback`.
+
+To catch mistakes, use CI audit mode:
+- Match declared background aliases (`backgrounds[*].aliases`) against DOM classes/vars.
+- Flag elements with token usage but no background class.
+- Optionally run luminance-only heuristics as warnings, never as runtime resolution input.
+
+### Compliance Engine Contract (Pluggable)
+
+Instead of exposing WCAG-specific threshold math, engines expose pass/fail evaluation for a candidate pair:
 
 ```typescript
-interface ComplianceEngine {
-  getRequiredContrast(
-    fontSizePx: number,
-    fontWeight?: number,
-    role?: 'text' | 'non-text'
-  ): number;
-}
+type ComplianceContext = {
+  fontSizePx: number;
+  fontWeight: number;
+  target: 'text';
+  level: 'AA' | 'AAA';
+};
 
-// WCAG 2.1:
-// role === 'text'     → 4.5 (normal) or 3.0 (large) for AA
-// role === 'non-text' → 3.0 (always) for AA
+type ComplianceEvaluation = {
+  pass: boolean;
+  metric: string; // e.g. 'wcag21-ratio' or 'apca-lc'
+  value: number;
+  required?: number;
+  polarity?: 'dark-on-light' | 'light-on-dark';
+};
+
+interface ComplianceEngine {
+  id: string;
+  evaluate(fgHex: string, bgHex: string, context: ComplianceContext): ComplianceEvaluation;
+  preferredDirection?(bgHex: string): 'lighter' | 'darker' | 'either';
+}
 ```
+
+Why this shape works:
+- WCAG can implement `metric = "wcag21-ratio"` with ratio pass/fail.
+- APCA can implement `metric = "apca-lc"` with polarity-sensitive rules.
+- Resolver and rule generator only need `pass`, so swapping engines does not change resolver logic.
 
 ### Interaction States
 
@@ -299,11 +308,11 @@ The system generates:
 }
 ```
 
-Interaction variants are validated against the compliance engine with the same thresholds as the base token. WCAG doesn't technically require contrast on transient states, but the system validates them anyway — teams can override specific steps if the validation is too strict for their intent.
+Interaction variants are validated with the same engine and context model as base tokens. Teams can patch specific states with overrides when the generated step is not the intended visual hierarchy.
 
 ### What the System Does With the Input
 
-During registry build (build time via Vite plugin, or app init):
+During registry build (build-time plugin or CI precompile step):
 
 1. **Validate input** against JSON schema. Catch ramp references that don't exist, step indices out of bounds, duplicate semantic names.
 
@@ -312,11 +321,11 @@ During registry build (build time via Vite plugin, or app init):
 3. **Resolve backgrounds** — look up each background's hex from its ramp + step.
 
 4. **Process semantics** — for each token:
-   - Read `role` (default: `'text'`).
-   - If `overrides` provided, use them.
-   - If `overrides` omitted, **auto-generate rules**: for each background (and, for `text` role, each font size), walk the ramp to find the closest compliant step to `defaultStep`.
-   - If `interactions` provided, repeat rule generation for each interaction state.
-   - If `vision` overrides exist, repeat for each vision mode.
+   - Auto-generate a baseline matrix for all contexts.
+   - If `interactions` provided, generate baseline matrices for each interaction state.
+   - If `vision` overrides exist, repeat generation for each vision mode.
+   - Apply manual `overrides` as context patches over generated results.
+   - Re-validate post-patch; fail or warn based on `onUnresolvedOverride`.
 
 5. **Build registry** — expand all combinations into the variant Map. Validate every entry.
 
@@ -328,36 +337,49 @@ function autoGenerateRules(
   defaultStep: number,
   backgrounds: Map<string, ProcessedBackground>,
   compliance: ComplianceEngine,
-  role: 'text' | 'non-text',
-  fontSizes: FontSizeClass[]
+  fontSizes: FontSizeClass[],
+  stacks: StackClass[]
 ): ContextRule[] {
+  // FontSizeClass values are intentionally numeric px strings ('12px', '14px', …)
+  // so that parseInt(fontSize, 10) gives the pixel value for ComplianceContext.
+  //
+  // v1 limitation: fontWeight is fixed at 400. Bold-text WCAG thresholds are not
+  // modelled in v1; teams can add manual overrides for bold large text if needed.
   const rules: ContextRule[] = [];
-
-  // Non-text tokens: font size doesn't matter, use a single pass
-  const sizesToCheck = role === 'non-text' ? ['16px' as FontSizeClass] : fontSizes;
-
   for (const [bgName, bg] of backgrounds) {
-    for (const fontSize of sizesToCheck) {
-      const required = compliance.getRequiredContrast(parseInt(fontSize), 400, role);
+    for (const fontSize of fontSizes) {
+      for (const stack of stacks) {
+        const context = {
+          fontSizePx: parseInt(fontSize, 10),
+          fontWeight: 400,
+          target: 'text' as const,
+          level: 'AA' as const,
+        };
 
-      const defaultRatio = computeContrast(tokenRamp.steps[defaultStep], bg);
-      if (defaultRatio >= required) continue;
+        const baseStep = tokenRamp.steps[defaultStep];
+        const baseEval = compliance.evaluate(baseStep.hex, bg.hex, context);
+        if (baseEval.pass) continue;
 
-      const bgIsLight = bg.relativeLuminance > 0.5;
-      const searchDirection = bgIsLight ? 'darker' : 'lighter';
-      const passingStep = findClosestPassingStep(
-        tokenRamp, defaultStep, bg, required, searchDirection
-      );
+        const searchDirection =
+          compliance.preferredDirection?.(bg.hex) ??
+          (bg.relativeLuminance > 0.5 ? 'darker' : 'lighter');
+        const passingStep = findClosestPassingStep(
+          tokenRamp,
+          defaultStep,
+          (candidateHex) => compliance.evaluate(candidateHex, bg.hex, context).pass,
+          searchDirection
+        );
 
-      if (passingStep !== null && passingStep !== defaultStep) {
-        const rule: ContextRule = { bg: bgName, step: passingStep, minRatio: required };
-        // Only include fontSize for text tokens
-        if (role === 'text') rule.fontSize = fontSize;
-        rules.push(rule);
+        if (passingStep !== null && passingStep !== defaultStep) {
+          const rule: ContextRule = { bg: bgName, fontSize, stack, step: passingStep };
+          rules.push(rule);
+        }
       }
     }
   }
 
+  // deduplicateRules collapses rules with identical bg+fontSize+stack keys,
+  // keeping the last-declared entry (matches override precedence order).
   return deduplicateRules(rules);
 }
 ```
@@ -373,10 +395,10 @@ Foundation. Zero dependencies. Pure TypeScript.
 - `TokenInput` type + JSON schema (`schema.json`) for editor validation
 - `processInput(input: TokenInput): ProcessedInput` — hex → OKLCH, luminance, ramp validation
 - Internal types: `ProcessedRamp`, `ProcessedStep`, `ProcessedBackground`, `ResolvedVariant`, `VariantKey`, `TokenRegistry`
-- `ComplianceEngine` interface with `role` parameter + WCAG 2.1 implementation
-- `autoGenerateRules()` — walk ramp to find compliant steps, respects `role` (skips font-size dimension for non-text)
+- `ComplianceEngine` neutral interface + WCAG 2.1 implementation
+- `autoGenerateRules()` — walk ramp to find compliant steps via `engine.evaluate()`
 - `buildRegistry(processed, complianceEngine): TokenRegistry` — expand all variants including interaction states
-- `resolveToken(token, context, registry): string` — ≤5 Map.get() calls
+- `resolveToken(token, context, registry): string` — bounded fallback lookups, target <10μs
 - `resolveAllTokens(context, registry): Record<string, string>` — includes interaction variants (e.g., `fgLink`, `fgLink-hover`, `fgLink-active`)
 - Fallback chain: exact → relax vision → relax stack → relax bg → default
 - `validateRegistry(registry): ValidationResult`
@@ -391,13 +413,14 @@ export { resolveToken, resolveAllTokens } from './resolver';
 export { generateCSS } from './css';
 export { serializeRegistry, deserializeRegistry } from './serialize';
 export { wcag21 } from './compliance/wcag21';
+// apca is added in Phase 5
 export type { TokenInput, SemanticInput, TokenRegistry, ComplianceEngine, ... } from './types';
 ```
 
 **Test by:**
 - Feed sample JSON → build registry → resolve across contexts → validate all pass AA
 - Confirm auto-rules select correct steps for dark/light backgrounds
-- Confirm non-text tokens produce fewer variants (no font-size dimension)
+- Confirm override patches are applied by specificity then declaration order
 - Confirm interaction state variants resolve per-context
 - Confirm <10μs per resolve call
 - Validate JSON schema rejects bad input
@@ -410,7 +433,7 @@ Build-time generation so consuming projects ship pre-computed registries.
 - Virtual module: `import { registry } from 'virtual:design-tokens'`
 - Type emission: generate typed unions from input JSON keys
 - HMR: watch input JSON, regenerate on change
-- Terminal output: variant count, AA/AAA pass rates, failures, text vs non-text breakdown
+- Terminal output: variant count, pass rates, failures, unresolved override targets
 
 **Plugin config:**
 ```typescript
@@ -432,7 +455,7 @@ export default defineConfig({
 **Generated types:**
 ```typescript
 // Auto-generated — do not edit
-export type TokenName = 'fgPrimary' | 'fgSecondary' | 'fgTertiary' | 'fgAccent' | 'fgDisabled' | 'fgInverse' | 'fgLink' | 'fgError' | 'fgSuccess' | 'fgIcon' | 'fgIconAccent' | 'fgBorder' | 'fgBorderAccent';
+export type TokenName = 'fgPrimary' | 'fgSecondary' | 'fgTertiary' | 'fgAccent' | 'fgDisabled' | 'fgInverse' | 'fgLink' | 'fgError' | 'fgSuccess';
 export type InteractionTokenName = 'fgLink-hover' | 'fgLink-active' | 'fgLink-focus';
 export type BackgroundClass = 'white' | 'light' | 'card' | 'dark' | 'inverse';
 export type RampName = 'neutral' | 'blue' | 'red' | 'orange' | 'green';
@@ -441,11 +464,11 @@ export type RampName = 'neutral' | 'blue' | 'red' | 'orange' | 'green';
 ### Phase 3: `@gamut-all/react` — Provider + Hooks
 
 **Build:**
-- `<TokenProvider>` — accepts `TokenInput` JSON or pre-built `TokenRegistry`
-- DOM context detection:
-  - Font size classifier
-  - Background detector — snap to nearest defined background by OKLCH lightness
-  - Stack depth detector — `data-stack-context` walk, z-index/role fallback
+- `<TokenProvider>` — accepts pre-built `TokenRegistry` (preferred) or `TokenInput` in dev only
+- DOM context binding:
+  - Font size classifier: reads `getComputedStyle(el).fontSize`, then buckets to the nearest `FontSizeClass` by rounding down to the largest class ≤ computed value (floor bucketing). Values below `12px` clamp to `'12px'`; values above `32px` clamp to `'32px'`.
+  - Background class reader (`data-bg`) with nearest `StackLayer` inheritance
+  - Stack layer reader (`data-stack`) with nearest `StackLayer` inheritance
 - `useDesignContext(ref)` — ResizeObserver + MutationObserver, debounced, shallow-compare
 - `useToken(tokenName, ref)` → hex
 - `useResolvedTokens(ref)` → includes interaction variants
@@ -455,40 +478,56 @@ export type RampName = 'neutral' | 'blue' | 'red' | 'orange' | 'green';
 
 **Test by:**
 - Nested StackLayers resolve tokens differently per layer
-- Background detection snaps to defined BackgroundDefs
+- Missing `data-bg` emits dev warning and falls back to configured default
 
 ### Phase 4: `@gamut-all/react` — Consumer Components + HOC
 
 **Build:**
 - `<TokenizedText token="fgSecondary" as="p">`
 - `<TokenizedContainer bg="dark" stack="card">`
-- `withAutoContrast(Component, { tokens })`
+- `withAutoContrast(Component, { tokens })` — HOC that injects resolved token hex values as props (e.g., `color`, `style.color`) from the registry without any runtime color math; resolution is still a Map lookup
 - `<TokenResolver>` (render prop)
-- `<TokenInspector>` (dev-only debug overlay — shows role, compliance level, interaction states)
+- `<TokenInspector>` (dev-only debug overlay — shows context keys, compliance metric, interaction states)
 
 ### Phase 5: Vision Mode + Compliance Extensibility
 
 **`@gamut-all/core`:**
-- VisionMode dimension on VariantKey
-- Vision-aware rule generation
-- APCA compliance engine (behind config flag)
+- Vision-aware auto-rule generation (`autoGenerateRules` loops over vision modes)
+- APCA compliance engine (behind config flag; adds `apca.ts` + export)
 
 **`@gamut-all/react`:**
 - `visionMode` in provider context + `setVisionMode()`
 - `data-vision` attribute on root element
 
-### Phase 6: `@gamut-all/react` — Environment Extensions (Optional)
+### Phase 6: CI Audit Tooling (`@gamut-all/audit`) (Optional)
 
 **Build:**
-- `useEnvironmentContext()` — AmbientLightSensor, `prefers-contrast`, time-of-day
-- Environment conditions map to step selections
-- Graceful degradation
+- CLI that loads generated registry + app pages (Playwright)
+- Verifies token usage is tagged with declared context keys (`data-bg`, `data-stack`, `data-vision`)
+- Audits computed foreground/background pairs with selected compliance engine
+- Reports unknown backgrounds, missing context tags, and non-compliant combinations
 
 ---
 
 ## Internal Data Model (`@gamut-all/core`)
 
 ```typescript
+/** Intermediate result of processInput — consumed by buildRegistry. */
+interface ProcessedInput {
+  ramps: Map<string, ProcessedRamp>;
+  backgrounds: Map<string, ProcessedBackground>;
+  semantics: Map<string, ProcessedSemantic>;
+  config: Required<NonNullable<TokenInput['config']>>;
+}
+
+/** A single resolved context rule produced by autoGenerateRules. */
+interface ContextRule {
+  bg: string;
+  fontSize: FontSizeClass;
+  stack: StackClass;
+  step: number;
+}
+
 interface ProcessedRamp {
   name: string;
   steps: ProcessedStep[];
@@ -508,14 +547,15 @@ interface ProcessedBackground {
   step: number;
   hex: string;
   relativeLuminance: number;
+  fallback: string[];
+  aliases: string[];
 }
 
 interface ResolvedVariant {
   ramp: string;
   step: number;
   hex: string;
-  role: 'text' | 'non-text';
-  compliance: ComplianceResult;
+  compliance: ComplianceEvaluation;
 }
 
 type VariantKey = `${string}__${FontSizeClass}__${string}__${StackClass}__${VisionMode}`;
@@ -523,13 +563,13 @@ type VariantKey = `${string}__${FontSizeClass}__${string}__${StackClass}__${Visi
 interface TokenRegistry {
   ramps: Map<string, ProcessedRamp>;
   backgrounds: Map<string, ProcessedBackground>;
+  backgroundFallbacks: Record<string, string[]>;
   variantMap: Map<VariantKey, ResolvedVariant>;
   defaults: Record<string, string>;
   meta: {
     generatedAt: string;
     totalVariants: number;
-    textTokenCount: number;
-    nonTextTokenCount: number;
+    tokenCount: number;
     complianceEngine: string;
     wcagTarget: 'AA' | 'AAA';
     inputHash: string;
@@ -583,14 +623,27 @@ function resolveToken(token: string, context: DesignContext, registry: TokenRegi
     if (vFallback) return vFallback.hex;
   }
 
-  // 3. Relax stack toward 'root'
+  // 3. Relax stack toward 'root' — try current visionMode first, then 'default'
   for (const stack of STACK_FALLBACK[context.stackDepth] ?? []) {
     const sKey = `${token}__${context.fontSize}__${context.bgClass}__${stack}__${context.visionMode}`;
     const sFallback = registry.variantMap.get(sKey);
     if (sFallback) return sFallback.hex;
+
+    if (context.visionMode !== 'default') {
+      const svKey = `${token}__${context.fontSize}__${context.bgClass}__${stack}__default`;
+      const svFallback = registry.variantMap.get(svKey);
+      if (svFallback) return svFallback.hex;
+    }
   }
 
-  // 4. Default
+  // 4. Relax background using declared fallback chain from input/build metadata
+  for (const bg of registry.backgroundFallbacks[context.bgClass] ?? []) {
+    const bKey = `${token}__${context.fontSize}__${bg}__root__${context.visionMode}`;
+    const bFallback = registry.variantMap.get(bKey);
+    if (bFallback) return bFallback.hex;
+  }
+
+  // 5. Default
   return registry.defaults[token];
 }
 ```
@@ -601,11 +654,14 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
 
 ## CSS Output (`@gamut-all/core`)
 
+**Naming convention:** Semantic token names are converted from camelCase to kebab-case and prefixed with `--` (e.g., `fgPrimary` → `--fg-primary`, `fgLink` → `--fg-link`). Interaction variants append `-{state}` (e.g., `fgLink` hover → `--fg-link-hover`).
+
+**`:root` represents the default background:** The `:root` block contains values for the implicit default context (no `data-bg` attribute). Per-background overrides are declared as `[data-bg="…"]` attribute selectors. The background with the lowest ramp step (lightest) typically matches `:root`; if teams need an explicit default, a `defaultBg` config key may be added in a future version.
+
 ```css
 /* ── Base tokens ────────────────────────────────────────── */
 
 :root {
-  /* Text tokens */
   --fg-primary: #262626;
   --fg-secondary: #737373;
   --fg-tertiary: #a3a3a3;
@@ -615,12 +671,6 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
   --fg-link: #2563eb;
   --fg-error: #dc2626;
   --fg-success: #16a34a;
-
-  /* Non-text tokens */
-  --fg-icon: #a3a3a3;
-  --fg-icon-accent: #3b82f6;
-  --fg-border: #d4d4d4;
-  --fg-border-accent: #93c5fd;
 
   /* Interaction states */
   --fg-link-hover: #1e40af;
@@ -658,11 +708,6 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
   --fg-error: #fca5a5;
   --fg-success: #86efac;
 
-  --fg-icon: #d4d4d4;
-  --fg-icon-accent: #60a5fa;
-  --fg-border: #525252;
-  --fg-border-accent: #3b82f6;
-
   --fg-link-hover: #60a5fa;
   --fg-link-active: #3b82f6;
 }
@@ -673,9 +718,6 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
   --fg-accent: #bfdbfe;
   --fg-error: #fecaca;
   --fg-success: #bbf7d0;
-
-  --fg-icon: #d4d4d4;
-  --fg-border: #525252;
 }
 
 [data-bg="light"] {
@@ -709,18 +751,6 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
   --fg-error: #ea580c;
   --fg-success: #2563eb;
 }
-
-/* ── System preferences ─────────────────────────────────── */
-
-@media (prefers-contrast: more) {
-  :root {
-    --fg-primary: #171717;
-    --fg-secondary: #404040;
-    --fg-accent: #1e40af;
-    --fg-icon: #737373;
-    --fg-border: #a3a3a3;
-  }
-}
 ```
 
 ---
@@ -730,12 +760,12 @@ Interaction variants are resolved with the same function — `fgLink-hover` is i
 ### App root
 
 ```tsx
-import tokenJson from './tokens.json';
 import { TokenProvider } from '@gamut-all/react';
+import { registry } from 'virtual:design-tokens';
 
 function App() {
   return (
-    <TokenProvider input={tokenJson} strategy="context-aware">
+    <TokenProvider registry={registry}>
       <Router>
         <Layout />
       </Router>
@@ -761,37 +791,6 @@ function UserCard({ name, email, role }: UserCardProps) {
       <TokenizedText token="fgTertiary" as="span" className="text-xs mt-2">
         {role}
       </TokenizedText>
-    </StackLayer>
-  );
-}
-```
-
-### Icons and borders (non-text tokens)
-
-```tsx
-function AlertCard({ message, type }: AlertProps) {
-  const iconColor = type === 'error' ? 'var(--fg-error)' : 'var(--fg-success)';
-
-  return (
-    <StackLayer stack="card" bg="light" className="rounded-lg p-4">
-      <div className="flex items-start gap-3">
-        {/* Icon uses non-text token — 3:1 requirement, not 4.5:1 */}
-        <svg style={{ color: iconColor }} className="w-5 h-5 mt-0.5" fill="currentColor">
-          {type === 'error' ? <ErrorIcon /> : <CheckIcon />}
-        </svg>
-        <div>
-          <TokenizedText token="fgPrimary" as="p" className="text-sm font-medium">
-            {message}
-          </TokenizedText>
-        </div>
-      </div>
-      {/* Border uses non-text token */}
-      <div
-        className="mt-3 pt-3"
-        style={{ borderTop: '1px solid var(--fg-border)' }}
-      >
-        <span className="text-[var(--fg-tertiary)] text-xs">2 minutes ago</span>
-      </div>
     </StackLayer>
   );
 }
@@ -838,7 +837,7 @@ function NavLinkTW({ href, children }: NavLinkProps) {
 ```tsx
 function Dashboard() {
   return (
-    <TokenProvider input={tokenJson} strategy="context-aware">
+    <TokenProvider registry={registry}>
       <main className="bg-[var(--bg-white)]">
         <h1 className="text-[var(--fg-primary)] text-2xl font-bold">Dashboard</h1>
         <p className="text-[var(--fg-secondary)] text-sm">Last updated 5 min ago</p>
@@ -853,7 +852,7 @@ function Dashboard() {
 
         <StackLayer stack="card" bg="card" className="rounded-lg p-4 mt-4">
           <div className="flex items-center gap-2">
-            <svg style={{ color: 'var(--fg-icon)' }} className="w-4 h-4"><AlertIcon /></svg>
+            <svg style={{ color: 'var(--fg-accent)' }} className="w-4 h-4"><AlertIcon /></svg>
             <span className="text-[var(--fg-error)] text-sm font-medium">
               3 alerts need attention
             </span>
@@ -952,16 +951,6 @@ const hex = resolveToken('fgSecondary', {
 }, registry);
 
 console.log(hex); // #d4d4d4
-
-// Resolve an icon token — font size doesn't affect the result
-const iconHex = resolveToken('fgIcon', {
-  fontSize: '12px', // ignored for non-text tokens
-  bgClass: 'dark',
-  stackDepth: 'root',
-  visionMode: 'default',
-}, registry);
-
-console.log(iconHex); // #d4d4d4
 ```
 
 ---
@@ -977,15 +966,15 @@ packages/
 │   │   ├── types.ts             # TokenInput, ProcessedRamp, Registry, DesignContext
 │   │   ├── schema.ts            # Runtime validation
 │   │   ├── processor.ts         # hex → OKLCH, luminance, ramp validation
-│   │   ├── rule-generator.ts    # autoGenerateRules, role-aware (skips font-size for non-text)
+│   │   ├── rule-generator.ts    # autoGenerateRules + override patch application
 │   │   ├── registry.ts          # buildRegistry, validateRegistry
 │   │   ├── resolver.ts          # resolveToken, resolveAllTokens, fallback chain
 │   │   ├── serialize.ts         # Registry ↔ JSON
 │   │   ├── css.ts               # generateCSS: base + overrides + interactions + vision
 │   │   ├── compliance/
-│   │   │   ├── types.ts         # ComplianceEngine interface (with role param)
-│   │   │   ├── wcag21.ts        # WCAG 2.1: text (1.4.3) + non-text (1.4.11)
-│   │   │   └── apca.ts          # APCA draft (Phase 5)
+│   │   │   ├── types.ts         # ComplianceEngine neutral contract
+│   │   │   └── wcag21.ts        # WCAG 2.1 text contrast implementation
+│   │   │   # apca.ts added in Phase 5
 │   │   ├── utils/
 │   │   │   ├── oklch.ts         # hex → OKLCH, OKLCH → relative luminance
 │   │   │   └── contrast.ts      # WCAG luminance, contrast ratio
@@ -999,11 +988,11 @@ packages/
 │   ├── src/
 │   │   ├── TokenProvider.tsx
 │   │   ├── hooks.ts
-│   │   ├── context-detection.ts
+│   │   ├── context-detection.ts  # orchestrator: composes dom/* into a DesignContext
 │   │   ├── dom/
-│   │   │   ├── font-size.ts
-│   │   │   ├── background.ts
-│   │   │   └── stack.ts
+│   │   │   ├── font-size.ts      # reads + buckets computed font size
+│   │   │   ├── background.ts     # reads data-bg attribute + inheritance
+│   │   │   └── stack.ts          # reads data-stack attribute + inheritance
 │   │   ├── components/
 │   │   │   ├── StackLayer.tsx
 │   │   │   ├── TokenizedText.tsx
@@ -1011,8 +1000,16 @@ packages/
 │   │   │   ├── TokenResolver.tsx
 │   │   │   ├── TokenInspector.tsx
 │   │   │   └── withAutoContrast.tsx
-│   │   ├── environment.ts
+│   │   ├── audit-helpers.ts      # dev/CI utilities: check data-bg coverage, warn on missing context tags
 │   │   └── index.ts
+│   └── tsconfig.json
+│
+├── audit/                        # Optional CI package
+│   ├── package.json
+│   ├── src/
+│   │   ├── cli.ts
+│   │   ├── playwright-runner.ts
+│   │   └── report.ts
 │   └── tsconfig.json
 │
 └── examples/
@@ -1027,26 +1024,26 @@ packages/
 
 - **Color manipulation** — no darken/lighten/blend. Ramps are the API.
 - **HSL anything** — OKLCH only internally.
-- **Spacing, radius, elevation** — no contrast compliance math, no ramp-step model. Out of scope.
 - **CSS/Figma/Style Dictionary parsers** — input is JSON.
 - **The token generator** — separate tool that produces ramp arrays.
 - **Runtime contrast computation** — registry builder picks steps at build time.
+- **Runtime background color sampling** — use declared context keys, not inferred DOM colors.\
 - **Framework adapters beyond React** — core is framework-agnostic; others are future packages.
 
 ## Success Criteria
 
 1. A team provides a JSON file with hex arrays + semantic bindings → working resolution layer.
-2. `resolveToken()` is ≤5 Map.get() calls, <10μs.
+2. `resolveToken()` stays in a bounded fallback path and resolves in <10μs.
 3. Auto-generated rules correctly select compliant steps per background.
-4. Manual overrides take precedence over auto-generated rules.
-5. `role: "non-text"` tokens validate against 3:1 and skip font-size variants.
-6. `role: "text"` tokens validate against 4.5:1 (normal) / 3:1 (large).
-7. Interaction states produce `--token-{state}` CSS vars that resolve per context.
-8. Background classifier snaps to defined backgrounds by OKLCH lightness.
-9. Vision modes select different pre-defined ramp steps.
-10. Swapping ComplianceEngine requires zero changes to resolution logic or input JSON.
-11. Ramp length is flexible — 10-step and 20-step ramps work identically.
-12. CSS custom properties update per `data-bg` / `data-stack` / `data-vision`.
-13. JSON schema provides editor autocomplete and catches invalid input.
-14. `@gamut-all/core` works in Node/SSR without browser APIs.
-15. Vite plugin emits typed unions from input JSON keys.
+4. Full baseline matrix is generated first, then manual overrides patch it by deterministic precedence.
+5. Text tokens validate against configured level (WCAG AA/AAA in v1).
+6. Interaction states produce `--token-{state}` CSS vars that resolve per context.
+7. Background resolution uses declared `data-bg` + fallback chains, not runtime color inference.
+8. Vision modes select different pre-defined ramp steps.
+9. Swapping `ComplianceEngine` requires zero changes to resolver logic or input schema shape.
+10. Ramp length is flexible — 10-step and 20-step ramps work identically.
+11. CSS custom properties update per `data-bg` / `data-stack` / `data-vision`.
+12. JSON schema provides editor autocomplete and catches invalid input.
+13. `@gamut-all/core` works in Node/SSR without browser APIs.
+14. Vite plugin emits typed unions from input JSON keys.
+15. Optional CI audit catches missing context tags and non-compliant rendered pairs.
