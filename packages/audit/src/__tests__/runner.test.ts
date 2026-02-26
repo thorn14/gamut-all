@@ -30,6 +30,10 @@ const input: TokenInput = {
       interactions: { hover: { step: 8 } },
     },
   },
+  // Limit to root stack only — elevated stacks land on mid-tone surfaces where
+  // neither WCAG nor APCA can guarantee compliance (a known property of mid-tone
+  // backgrounds). Audit tests exercise the audit logic, not elevation behaviour.
+  config: { stacks: { root: 0 } },
 };
 
 const processed = processInput(input);

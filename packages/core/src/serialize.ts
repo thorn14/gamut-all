@@ -28,6 +28,8 @@ interface SerializedBackground {
   relativeLuminance: number;
   fallback: string[];
   aliases: string[];
+  elevationDirection: 'lighter' | 'darker';
+  surfaces: [string, { step: number; hex: string; relativeLuminance: number }][];
 }
 
 interface SerializedVariant {
@@ -78,6 +80,12 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
       relativeLuminance: bg.relativeLuminance,
       fallback: bg.fallback,
       aliases: bg.aliases,
+      elevationDirection: bg.elevationDirection,
+      surfaces: Array.from(bg.surfaces.entries()).map(([stack, surface]) => [stack, {
+        step: surface.step,
+        hex: surface.hex,
+        relativeLuminance: surface.relativeLuminance,
+      }]),
     }]
   );
 
@@ -113,7 +121,10 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
   );
 
   const backgrounds = new Map<string, ProcessedBackground>(
-    serialized.backgrounds.map(([key, bg]) => [key, bg])
+    serialized.backgrounds.map(([key, bg]) => [key, {
+      ...bg,
+      surfaces: new Map(bg.surfaces),
+    }])
   );
 
   const variantMap = new Map<VariantKey, ResolvedVariant>(

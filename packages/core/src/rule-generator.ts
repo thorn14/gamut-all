@@ -82,69 +82,68 @@ export function autoGenerateRules(
   stacks: StackClass[],
   stepSelectionStrategy: StepSelectionStrategy = 'closest',
 ): ContextRule[] {
-  // v1: only emit stack='root' entries — all stacks produce identical rules
-  // (compliance is bgHex-dependent only)
-  void stacks; // accepted but only 'root' entries are emitted
-
   const rules: ContextRule[] = [];
 
   for (const [bgName, bg] of backgrounds) {
-    for (const fontSize of fontSizes) {
-      const context = {
-        fontSizePx: parseInt(fontSize, 10),
-        fontWeight: 400,
-        target: 'text' as const,
-        level: wcagTarget,
-      };
+    for (const stack of stacks) {
+      const surface = bg.surfaces.get(stack);
+      if (!surface) continue;
 
-      const baseStep = tokenRamp.steps[defaultStep];
-      if (!baseStep) continue;
+      for (const fontSize of fontSizes) {
+        const context = {
+          fontSizePx: parseInt(fontSize, 10),
+          fontWeight: 400,
+          target: 'text' as const,
+          level: wcagTarget,
+        };
 
-      const baseEval = compliance.evaluate(baseStep.hex, bg.hex, context);
-      if (baseEval.pass) continue;
+        const baseStep = tokenRamp.steps[defaultStep];
+        if (!baseStep) continue;
 
-      const passes = (candidateHex: string) => compliance.evaluate(candidateHex, bg.hex, context).pass;
+        // Compliance is checked against this stack's surface, not the bg base
+        const baseEval = compliance.evaluate(baseStep.hex, surface.hex, context);
+        if (baseEval.pass) continue;
 
-      if (stepSelectionStrategy === 'mirror-closest') {
-        const mirroredStep = tokenRamp.steps.length - 1 - defaultStep;
-        const mirroredStepData = tokenRamp.steps[mirroredStep];
+        const passes = (candidateHex: string) => compliance.evaluate(candidateHex, surface.hex, context).pass;
 
-        if (mirroredStepData) {
-          if (passes(mirroredStepData.hex) && mirroredStep !== defaultStep) {
-            const rule: ContextRule = { bg: bgName, fontSize, stack: 'root', step: mirroredStep };
-            rules.push(rule);
-            continue;
-          }
+        if (stepSelectionStrategy === 'mirror-closest') {
+          const mirroredStep = tokenRamp.steps.length - 1 - defaultStep;
+          const mirroredStepData = tokenRamp.steps[mirroredStep];
 
-          const closestToMirrored = findClosestPassingStep(
-            tokenRamp,
-            mirroredStep,
-            passes,
-            'either',
-          );
+          if (mirroredStepData) {
+            if (passes(mirroredStepData.hex) && mirroredStep !== defaultStep) {
+              rules.push({ bg: bgName, fontSize, stack, step: mirroredStep });
+              continue;
+            }
 
-          if (closestToMirrored !== null && closestToMirrored !== defaultStep) {
-            const rule: ContextRule = { bg: bgName, fontSize, stack: 'root', step: closestToMirrored };
-            rules.push(rule);
-            continue;
+            const closestToMirrored = findClosestPassingStep(
+              tokenRamp,
+              mirroredStep,
+              passes,
+              'either',
+            );
+
+            if (closestToMirrored !== null && closestToMirrored !== defaultStep) {
+              rules.push({ bg: bgName, fontSize, stack, step: closestToMirrored });
+              continue;
+            }
           }
         }
-      }
 
-      const searchDirection =
-        compliance.preferredDirection?.(bg.hex) ??
-        (bg.relativeLuminance > 0.5 ? 'darker' : 'lighter');
+        const searchDirection =
+          compliance.preferredDirection?.(surface.hex) ??
+          (surface.relativeLuminance > 0.5 ? 'darker' : 'lighter');
 
-      const passingStep = findClosestPassingStep(
-        tokenRamp,
-        defaultStep,
-        passes,
-        searchDirection,
-      );
+        const passingStep = findClosestPassingStep(
+          tokenRamp,
+          defaultStep,
+          passes,
+          searchDirection,
+        );
 
-      if (passingStep !== null && passingStep !== defaultStep) {
-        const rule: ContextRule = { bg: bgName, fontSize, stack: 'root', step: passingStep };
-        rules.push(rule);
+        if (passingStep !== null && passingStep !== defaultStep) {
+          rules.push({ bg: bgName, fontSize, stack, step: passingStep });
+        }
       }
     }
   }

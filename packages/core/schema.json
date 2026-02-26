@@ -13,10 +13,17 @@
       "additionalProperties": false,
       "properties": {
         "wcagTarget": { "type": "string", "enum": ["AA", "AAA"] },
-        "complianceEngine": { "type": "string", "enum": ["wcag21"] },
+        "complianceEngine": { "type": "string", "enum": ["wcag21", "apca"] },
         "onUnresolvedOverride": { "type": "string", "enum": ["error", "warn"] },
         "defaultBg": { "type": "string" },
-        "stepSelectionStrategy": { "type": "string", "enum": ["closest", "mirror-closest"] }
+        "stepSelectionStrategy": { "type": "string", "enum": ["closest", "mirror-closest"] },
+        "stacks": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 },
+          "properties": {
+            "root": { "type": "integer", "const": 0 }
+          }
+        }
       }
     },
     "primitives": {
@@ -45,6 +52,25 @@
           "aliases": {
             "type": "array",
             "items": { "type": "string" }
+          },
+          "tone": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ramp": { "type": "string" },
+                "step": { "type": "integer", "minimum": 0 },
+                "fallback": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
           }
         }
       }
@@ -61,6 +87,21 @@
           "overrides": {
             "type": "array",
             "items": { "$ref": "#/$defs/ContextOverrideInput" }
+          },
+          "tone": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ramp": { "type": "string" },
+                "defaultStep": { "type": "integer", "minimum": 0 },
+                "overrides": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/ContextOverrideInput" }
+                }
+              }
+            }
           },
           "interactions": {
             "type": "object",

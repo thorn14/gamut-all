@@ -97,12 +97,16 @@ describe('autoGenerateRules', () => {
     expect(Array.isArray(rules)).toBe(true);
   });
 
-  it('all generated rules have stack=root', () => {
+  it('generates rules across all stack levels', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
     const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    // Rules now span all stacks — each rule has a valid stack name
+    const stacksInRules = new Set(rules.map(r => r.stack));
+    expect(stacksInRules.size).toBeGreaterThan(1); // multiple stacks are represented
     for (const rule of rules) {
-      expect(rule.stack).toBe('root');
+      expect(typeof rule.stack).toBe('string');
+      expect(rule.stack.length).toBeGreaterThan(0);
     }
   });
 
@@ -138,7 +142,7 @@ describe('autoGenerateRules', () => {
     expect(keys.length).toBe(unique.size);
   });
 
-  it('mirror-closest strategy prefers mirrored step when it passes', () => {
+  it('mirror-closest strategy prefers mirrored step for root stack', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
     const onlyDark = new Map([['dark', processed.backgrounds.get('dark')!]]);
@@ -150,10 +154,13 @@ describe('autoGenerateRules', () => {
       wcag21,
       'AA',
       ALL_FONT_SIZES,
-      ALL_STACKS,
+      // Only test root stack to isolate the mirror-closest behaviour
+      ['root'],
       'mirror-closest',
     );
 
+    // Step 8 (#262626) on dark surface (step 8 = #262626 for root): fails AA.
+    // Mirror of step 8 in a 10-step ramp (0-9) = 9 - 8 = 1 (#f5f5f5), which passes.
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) {
       expect(rule.step).toBe(1);

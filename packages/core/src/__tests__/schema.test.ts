@@ -130,6 +130,29 @@ describe('validateSchema — backgrounds', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('ramp must be a string'))).toBe(true);
   });
+
+  it('accepts background tone override with ramp swap', () => {
+    const result = validateSchema({
+      ...base,
+      backgrounds: {
+        white: { ramp: 'neutral', step: 0, tone: { warm: { ramp: 'blue', step: 0 } } },
+        dark:  { ramp: 'neutral', step: 8 },
+      },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects background tone override with unknown ramp', () => {
+    const result = validateSchema({
+      ...base,
+      backgrounds: {
+        white: { ramp: 'neutral', step: 0, tone: { warm: { ramp: 'missing', step: 0 } } },
+        dark:  { ramp: 'neutral', step: 8 },
+      },
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('backgrounds.white.tone.warm.ramp'))).toBe(true);
+  });
 });
 
 describe('validateSchema — semantics', () => {
@@ -266,6 +289,35 @@ describe('validateSchema — semantics', () => {
       },
     });
     expect(result.valid).toBe(true);
+  });
+
+  it('accepts valid tone override with ramp swap', () => {
+    const result = validateSchema({
+      ...base,
+      semantics: {
+        fgPrimary: {
+          ramp: 'neutral',
+          defaultStep: 8,
+          tone: { warm: { ramp: 'blue', defaultStep: 6 } },
+        },
+      },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects tone mode with unknown ramp', () => {
+    const result = validateSchema({
+      ...base,
+      semantics: {
+        fgPrimary: {
+          ramp: 'neutral',
+          defaultStep: 8,
+          tone: { warm: { ramp: 'missing', defaultStep: 6 } },
+        },
+      },
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('tone.warm.ramp'))).toBe(true);
   });
 });
 

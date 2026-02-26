@@ -3,6 +3,7 @@ export { buildRegistry, validateRegistry } from './registry.js';
 export { resolveToken, resolveAllTokens } from './resolver.js';
 export { generateCSS } from './css.js';
 export { serializeRegistry, deserializeRegistry } from './serialize.js';
+export { applyToneMode } from './tone.js';
 export { wcag21 } from './compliance/wcag21.js';
 export { apca, softClamp } from './compliance/apca.js';
 export type {
@@ -22,4 +23,5 @@ export type {
   VisionMode,
   StepSelectionStrategy,
 } from './types.js';
-export { ALL_FONT_SIZES, ALL_STACKS, ALL_VISION_MODES } from './types.js';
+export { ALL_FONT_SIZES, ALL_STACKS, DEFAULT_STACK_NAMES, ALL_VISION_MODES } from './types.js';
+export type { StackSurface } from './types.js';

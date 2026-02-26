@@ -1,12 +1,16 @@
 // ── Fixed dimension types ────────────────────────────────────────────────────
 
 export type FontSizeClass = '12px' | '14px' | '16px' | '20px' | '24px' | '32px';
-export type StackClass = 'root' | 'card' | 'popover' | 'tooltip' | 'modal' | 'overlay';
+export type StackClass = string;
 export type VisionMode = 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'achromatopsia';
 export type StepSelectionStrategy = 'closest' | 'mirror-closest';
 
 export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', '24px', '32px'];
-export const ALL_STACKS: StackClass[] = ['root', 'card', 'popover', 'tooltip', 'modal', 'overlay'];
+// Default stack names — used as fallback when config.stacks is not provided.
+// Users may define any stack names they choose.
+export const DEFAULT_STACK_NAMES: StackClass[] = ['root', 'card', 'popover', 'tooltip', 'modal', 'overlay'];
+// Backward-compatible alias used across registry/rule-generation paths.
+export const ALL_STACKS: StackClass[] = DEFAULT_STACK_NAMES;
 export const ALL_VISION_MODES: VisionMode[] = ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia'];
 
 // ── Variant key ──────────────────────────────────────────────────────────────
@@ -23,6 +27,7 @@ export interface TokenInput {
     onUnresolvedOverride?: 'error' | 'warn';
     defaultBg?: string;
     stepSelectionStrategy?: StepSelectionStrategy;
+    stacks?: Partial<Record<StackClass, number>>;
   };
   primitives: Record<string, string[]>;
   backgrounds: Record<string, BackgroundInput>;
@@ -34,12 +39,23 @@ export interface BackgroundInput {
   step: number;
   fallback?: string[];
   aliases?: string[];
+  tone?: Record<string, {
+    ramp?: string;
+    step?: number;
+    fallback?: string[];
+    aliases?: string[];
+  }>;
 }
 
 export type SemanticInput = {
   ramp: string;
   defaultStep: number;
   overrides?: ContextOverrideInput[];
+  tone?: Record<string, {
+    ramp?: string;
+    defaultStep?: number;
+    overrides?: ContextOverrideInput[];
+  }>;
   interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
   vision?: Record<string, {
     ramp?: string;
@@ -61,7 +77,8 @@ export interface ProcessedInput {
   ramps: Map<string, ProcessedRamp>;
   backgrounds: Map<string, ProcessedBackground>;
   semantics: Map<string, ProcessedSemantic>;
-  config: Required<NonNullable<TokenInput['config']>>;
+  stacks: Map<StackClass, number>;
+  config: Required<Omit<NonNullable<TokenInput['config']>, 'stacks'>>;
 }
 
 export interface ProcessedRamp {
@@ -77,6 +94,12 @@ export interface ProcessedStep {
   relativeLuminance: number;
 }
 
+export interface StackSurface {
+  step: number;
+  hex: string;
+  relativeLuminance: number;
+}
+
 export interface ProcessedBackground {
   name: string;
   ramp: string;
@@ -85,6 +108,8 @@ export interface ProcessedBackground {
   relativeLuminance: number;
   fallback: string[];
   aliases: string[];
+  elevationDirection: 'lighter' | 'darker';
+  surfaces: Map<StackClass, StackSurface>;
 }
 
 export interface ProcessedSemantic {

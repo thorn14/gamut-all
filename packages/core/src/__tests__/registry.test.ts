@@ -67,13 +67,13 @@ describe('buildRegistry', () => {
     expect(typeof registry.meta.inputHash).toBe('string');
   });
 
-  it('generates variant entries for each token × bg × fontSize', () => {
-    // fgPrimary × 4 bgs × 6 fontSizes × 1 stack (root) × 1 vision (default)
+  it('generates variant entries for each token × bg × fontSize × stack', () => {
+    // fgPrimary × 4 bgs × 6 fontSizes × 6 stacks × 1 vision (default)
     let count = 0;
     for (const key of registry.variantMap.keys()) {
-      if (key.startsWith('fgPrimary__')) count++;
+      if (key.startsWith('fgPrimary__') && key.endsWith('__default')) count++;
     }
-    expect(count).toBe(4 * 6); // 4 backgrounds × 6 font sizes
+    expect(count).toBe(4 * 6 * 6); // 4 backgrounds × 6 font sizes × 6 stacks
   });
 
   it('generates interaction token variants', () => {

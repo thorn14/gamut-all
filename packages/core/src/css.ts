@@ -1,6 +1,5 @@
-import type { TokenRegistry, VisionMode, StackClass } from './types.js';
+import type { TokenRegistry, VisionMode } from './types.js';
 import { resolveToken } from './resolver.js';
-import { ALL_FONT_SIZES } from './types.js';
 
 // ── Token name → CSS var name ────────────────────────────────────────────────
 
@@ -10,11 +9,10 @@ import { ALL_FONT_SIZES } from './types.js';
  * - fgLink-hover → --fg-link-hover
  */
 export function tokenToCssVar(tokenName: string): string {
-  // Handle interaction suffix (e.g. fgLink-hover)
   const dashIdx = tokenName.indexOf('-');
   if (dashIdx !== -1) {
     const base = tokenName.slice(0, dashIdx);
-    const suffix = tokenName.slice(dashIdx); // includes the '-'
+    const suffix = tokenName.slice(dashIdx);
     return `--${camelToKebab(base)}${suffix}`;
   }
   return `--${camelToKebab(tokenName)}`;
@@ -35,11 +33,18 @@ export function generateCSS(registry: TokenRegistry): string {
   }
 
   // Determine defaultBg from registry
-  // The registry doesn't store defaultBg directly, so infer from first background key
   const defaultBg = Array.from(registry.backgrounds.keys())[0] ?? '';
 
-  // Use a representative fontSize for CSS generation (16px — font-size aware dims require JS)
-  // CSS vars emit bg/stack/vision dimensions only; fontSize requires resolveToken in JS
+  // Collect all stack names present in the registry (from bg surfaces)
+  const stackNames = new Set<string>();
+  for (const bg of registry.backgrounds.values()) {
+    for (const stack of bg.surfaces.keys()) {
+      stackNames.add(stack);
+    }
+  }
+  const nonRootStacks = Array.from(stackNames).filter(s => s !== 'root');
+
+  // Use a representative fontSize for CSS generation
   const repFontSize = '16px' as const;
 
   const lines: string[] = [];
@@ -47,27 +52,39 @@ export function generateCSS(registry: TokenRegistry): string {
   lines.push('   fontSize-aware resolution requires resolveToken() in JavaScript. */');
   lines.push('');
 
-  // ── :root block ─────────────────────────────────────────────────────────────
-  const rootVars: string[] = [];
-
-  // Token vars for defaultBg
-  for (const tokenName of tokenNames) {
-    const hex = resolveToken(tokenName, {
-      fontSize: repFontSize,
-      bgClass: defaultBg,
-      stackDepth: 'root',
-      visionMode: 'default',
-    }, registry);
-    rootVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
+  // ── Helper: resolve all tokens for a given context ────────────────────────
+  function resolveAll(bgName: string, stack: string, vision: VisionMode): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const tokenName of tokenNames) {
+      out.set(tokenName, resolveToken(tokenName, {
+        fontSize: repFontSize,
+        bgClass: bgName,
+        stackDepth: stack,
+        visionMode: vision,
+      }, registry));
+    }
+    return out;
   }
 
+  // ── :root block ────────────────────────────────────────────────────────────
+  const rootValues = resolveAll(defaultBg, 'root', 'default');
+  const rootVars: string[] = [];
+
+  for (const [tokenName, hex] of rootValues) {
+    rootVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
+  }
+  rootVars.push('');
+
+  // --bg-surface for root stack of default bg
+  const defaultBgData = registry.backgrounds.get(defaultBg);
+  const rootSurface = defaultBgData?.surfaces.get('root');
+  rootVars.push(`  --bg-surface: ${rootSurface ? `var(--${defaultBgData!.ramp}-${rootSurface.step})` : `var(--bg-${defaultBg})`};`);
   rootVars.push('');
 
   // --bg-* vars
   for (const [bgName, bg] of registry.backgrounds) {
     rootVars.push(`  --bg-${bgName}: ${bg.hex};`);
   }
-
   rootVars.push('');
 
   // --{ramp}-{step} vars
@@ -82,72 +99,52 @@ export function generateCSS(registry: TokenRegistry): string {
   lines.push('}');
   lines.push('');
 
-  // ── [data-bg="X"] blocks ─────────────────────────────────────────────────────
-  const rootTokenValues = new Map<string, string>();
-  for (const tokenName of tokenNames) {
-    rootTokenValues.set(tokenName, resolveToken(tokenName, {
-      fontSize: repFontSize,
-      bgClass: defaultBg,
-      stackDepth: 'root',
-      visionMode: 'default',
-    }, registry));
-  }
-
-  for (const [bgName] of registry.backgrounds) {
+  // ── [data-bg="X"] blocks — non-default bgs, root stack ────────────────────
+  for (const [bgName, bg] of registry.backgrounds) {
     if (bgName === defaultBg) continue;
 
+    const bgValues = resolveAll(bgName, 'root', 'default');
     const bgVars: string[] = [];
-    for (const tokenName of tokenNames) {
-      const hex = resolveToken(tokenName, {
-        fontSize: repFontSize,
-        bgClass: bgName,
-        stackDepth: 'root',
-        visionMode: 'default',
-      }, registry);
-      const rootHex = rootTokenValues.get(tokenName);
-      if (hex !== rootHex) {
+
+    for (const [tokenName, hex] of bgValues) {
+      if (hex !== rootValues.get(tokenName)) {
         bgVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
       }
     }
 
-    if (bgVars.length > 0) {
-      lines.push(`[data-bg="${bgName}"] {`);
-      lines.push(...bgVars);
-      lines.push('}');
-      lines.push('');
-    }
+    // --bg-surface for this bg at root stack
+    const bgRootSurface = bg.surfaces.get('root');
+    bgVars.push(`  --bg-surface: ${bgRootSurface ? `var(--${bg.ramp}-${bgRootSurface.step})` : `var(--bg-${bgName})`};`);
+
+    lines.push(`[data-bg="${bgName}"] {`);
+    lines.push(...bgVars);
+    lines.push('}');
+    lines.push('');
   }
 
-  // ── [data-stack="X"][data-bg="Y"] blocks ─────────────────────────────────────
-  // Collect all non-root stacks that have registry entries
-  const stacks: StackClass[] = ['card', 'popover', 'tooltip', 'modal', 'overlay'];
-  for (const stack of stacks) {
-    for (const [bgName] of registry.backgrounds) {
-      // Check if any token differs from [data-bg] value
+  // ── [data-bg="X"] [data-stack="Y"] blocks — DESCENDANT combinator ─────────
+  // Uses a space (descendant) so data-bg on an ancestor and data-stack on any child both match.
+  for (const [bgName, bg] of registry.backgrounds) {
+    const rootStackValues = resolveAll(bgName, 'root', 'default');
+
+    for (const stack of nonRootStacks) {
+      const stackValues = resolveAll(bgName, stack, 'default');
       const stackVars: string[] = [];
-      for (const tokenName of tokenNames) {
-        const stackHex = resolveToken(tokenName, {
-          fontSize: repFontSize,
-          bgClass: bgName,
-          stackDepth: stack,
-          visionMode: 'default',
-        }, registry);
 
-        // Compare against [data-bg="bgName"] (or :root if defaultBg)
-        const bgHex = resolveToken(tokenName, {
-          fontSize: repFontSize,
-          bgClass: bgName,
-          stackDepth: 'root',
-          visionMode: 'default',
-        }, registry);
-
-        if (stackHex !== bgHex) {
-          stackVars.push(`  ${tokenToCssVar(tokenName)}: ${stackHex};`);
+      for (const [tokenName, hex] of stackValues) {
+        if (hex !== rootStackValues.get(tokenName)) {
+          stackVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
         }
       }
 
+      // --bg-surface always emitted so components can use background: var(--bg-surface)
+      const surface = bg.surfaces.get(stack);
+      if (surface) {
+        stackVars.push(`  --bg-surface: var(--${bg.ramp}-${surface.step});`);
+      }
+
       if (stackVars.length > 0) {
-        lines.push(`[data-stack="${stack}"][data-bg="${bgName}"] {`);
+        lines.push(`[data-bg="${bgName}"] [data-stack="${stack}"] {`);
         lines.push(...stackVars);
         lines.push('}');
         lines.push('');
@@ -155,26 +152,19 @@ export function generateCSS(registry: TokenRegistry): string {
     }
   }
 
-  // ── Vision mode blocks ────────────────────────────────────────────────────────
+  // ── Vision mode blocks ─────────────────────────────────────────────────────
   const visionModes: VisionMode[] = ['deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia'];
 
   for (const visionMode of visionModes) {
-    // Check if this vision mode has any entries in the registry
     const hasVision = Array.from(registry.variantMap.keys()).some(k => k.endsWith(`__${visionMode}`));
     if (!hasVision) continue;
 
-    // [data-vision="X"] { ... } — overrides for defaultBg context
+    // [data-vision="X"] — overrides for defaultBg, root stack
+    const visionRootValues = resolveAll(defaultBg, 'root', visionMode);
     const visionRootVars: string[] = [];
-    for (const tokenName of tokenNames) {
-      const visionHex = resolveToken(tokenName, {
-        fontSize: repFontSize,
-        bgClass: defaultBg,
-        stackDepth: 'root',
-        visionMode,
-      }, registry);
-      const defaultHex = rootTokenValues.get(tokenName);
-      if (visionHex !== defaultHex) {
-        visionRootVars.push(`  ${tokenToCssVar(tokenName)}: ${visionHex};`);
+    for (const [tokenName, hex] of visionRootValues) {
+      if (hex !== rootValues.get(tokenName)) {
+        visionRootVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
       }
     }
     if (visionRootVars.length > 0) {
@@ -184,34 +174,19 @@ export function generateCSS(registry: TokenRegistry): string {
       lines.push('');
     }
 
-    // [data-vision="X"] [data-bg="Y"] { ... } — DESCENDANT combinator
+    // [data-vision="X"] [data-bg="Y"] — DESCENDANT combinator
     for (const [bgName] of registry.backgrounds) {
+      const visionBgValues = resolveAll(bgName, 'root', visionMode);
+      const defaultBgValues = resolveAll(bgName, 'root', 'default');
       const visionBgVars: string[] = [];
 
-      // Compare against default-vision same-bg values
-      for (const tokenName of tokenNames) {
-        const visionBgHex = resolveToken(tokenName, {
-          fontSize: repFontSize,
-          bgClass: bgName,
-          stackDepth: 'root',
-          visionMode,
-        }, registry);
-
-        // The reference value is what [data-bg="bgName"] shows (default vision)
-        const defaultBgHex = resolveToken(tokenName, {
-          fontSize: repFontSize,
-          bgClass: bgName,
-          stackDepth: 'root',
-          visionMode: 'default',
-        }, registry);
-
-        if (visionBgHex !== defaultBgHex) {
-          visionBgVars.push(`  ${tokenToCssVar(tokenName)}: ${visionBgHex};`);
+      for (const [tokenName, hex] of visionBgValues) {
+        if (hex !== defaultBgValues.get(tokenName)) {
+          visionBgVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
         }
       }
 
       if (visionBgVars.length > 0) {
-        // DESCENDANT combinator (space) — vision on ancestor, bg on child
         lines.push(`[data-vision="${visionMode}"] [data-bg="${bgName}"] {`);
         lines.push(...visionBgVars);
         lines.push('}');

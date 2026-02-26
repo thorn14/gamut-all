@@ -8,7 +8,18 @@ import type {
   ProcessedBackground,
   ProcessedSemantic,
   ContextOverrideInput,
+  StackClass,
 } from './types.js';
+import { DEFAULT_STACK_NAMES } from './types.js';
+
+const DEFAULT_STACK_OFFSETS: Record<string, number> = {
+  root: 0,
+  card: 1,
+  popover: 2,
+  tooltip: 2,
+  modal: 2,
+  overlay: 3,
+};
 
 export function processInput(input: TokenInput): ProcessedInput {
   // 1. Validate schema — throw on errors
@@ -35,8 +46,6 @@ export function processInput(input: TokenInput): ProcessedInput {
       const prev = steps[i - 1];
       const curr = steps[i];
       if (prev !== undefined && curr !== undefined) {
-        // Light-to-dark: luminance should decrease or stay same
-        // Check both directions are consistent
         if (i === 1 && prev.relativeLuminance < curr.relativeLuminance) {
           // Ascending order is fine (step 0 darkest)
         } else if (i > 1) {
@@ -59,7 +68,39 @@ export function processInput(input: TokenInput): ProcessedInput {
     ramps.set(rampName, { name: rampName, steps, stepCount: steps.length });
   }
 
-  // 3. Build ProcessedBackground for each background
+  // 3. Resolve config + stacks (must happen before backgrounds)
+  const inputConfig = input.config ?? {};
+  const backgroundKeys = Object.keys(input.backgrounds);
+  const firstBg = backgroundKeys[0] ?? '';
+
+  if (inputConfig.stacks?.root !== undefined && inputConfig.stacks.root !== 0) {
+    throw new Error('Stack "root" must have offset 0');
+  }
+
+  const inputStacks = inputConfig.stacks ?? {};
+  // If user provides stacks, use exactly those keys (plus ensure root=0).
+  // Otherwise fall back to the default set.
+  const resolvedStackEntries: [string, number][] = Object.keys(inputStacks).length > 0
+    ? Object.entries(inputStacks).map(([k, v]): [string, number] => [k, v ?? DEFAULT_STACK_OFFSETS[k] ?? 0])
+    : DEFAULT_STACK_NAMES.map((s): [string, number] => [s, DEFAULT_STACK_OFFSETS[s] ?? 0]);
+
+  const stacks = new Map<StackClass, number>(resolvedStackEntries);
+
+  const config = {
+    wcagTarget: inputConfig.wcagTarget ?? 'AA' as const,
+    complianceEngine: inputConfig.complianceEngine ?? 'wcag21' as const,
+    onUnresolvedOverride: inputConfig.onUnresolvedOverride ?? 'error' as const,
+    defaultBg: inputConfig.defaultBg ?? firstBg,
+    stepSelectionStrategy: inputConfig.stepSelectionStrategy ?? 'closest' as const,
+  };
+
+  if (!firstBg) {
+    warnings.push('No backgrounds defined — defaultBg will be empty string');
+  } else if (!inputConfig.defaultBg) {
+    warnings.push(`defaultBg not set — using first background key "${firstBg}" (JSON key order dependent)`);
+  }
+
+  // 4. Build ProcessedBackground for each background (uses resolved stacks)
   const backgrounds = new Map<string, ProcessedBackground>();
   for (const [bgName, bgInput] of Object.entries(input.backgrounds)) {
     const ramp = ramps.get(bgInput.ramp);
@@ -70,6 +111,24 @@ export function processInput(input: TokenInput): ProcessedInput {
     if (!step) {
       throw new Error(`Background "${bgName}" step ${bgInput.step} is out of bounds`);
     }
+
+    // Determine elevation direction: steps above midpoint are dark → go lighter
+    const mid = (ramp.steps.length - 1) / 2;
+    const elevationDirection: 'lighter' | 'darker' = bgInput.step > mid ? 'lighter' : 'darker';
+    const stepDelta = elevationDirection === 'darker' ? +1 : -1;
+
+    // Pre-compute surface for each stack level
+    const surfaces = new Map<StackClass, { step: number; hex: string; relativeLuminance: number }>();
+    for (const [stackName, offset] of stacks) {
+      const surfaceStep = Math.max(0, Math.min(ramp.steps.length - 1, bgInput.step + stepDelta * offset));
+      const surfaceStepData = ramp.steps[surfaceStep]!;
+      surfaces.set(stackName, {
+        step: surfaceStep,
+        hex: surfaceStepData.hex,
+        relativeLuminance: surfaceStepData.relativeLuminance,
+      });
+    }
+
     backgrounds.set(bgName, {
       name: bgName,
       ramp: bgInput.ramp,
@@ -78,10 +137,12 @@ export function processInput(input: TokenInput): ProcessedInput {
       relativeLuminance: step.relativeLuminance,
       fallback: bgInput.fallback ?? [],
       aliases: bgInput.aliases ?? [],
+      elevationDirection,
+      surfaces,
     });
   }
 
-  // 4. Build ProcessedSemantic for each semantic
+  // 5. Build ProcessedSemantic for each semantic
   const semantics = new Map<string, ProcessedSemantic>();
   for (const [tokenName, semInput] of Object.entries(input.semantics)) {
     const ramp = ramps.get(semInput.ramp);
@@ -128,23 +189,5 @@ export function processInput(input: TokenInput): ProcessedInput {
     });
   }
 
-  // 5. Resolve config with defaults
-  const backgroundKeys = Array.from(backgrounds.keys());
-  const firstBg = backgroundKeys[0] ?? '';
-  const inputConfig = input.config ?? {};
-  const config: Required<NonNullable<TokenInput['config']>> = {
-    wcagTarget: inputConfig.wcagTarget ?? 'AA',
-    complianceEngine: inputConfig.complianceEngine ?? 'wcag21',
-    onUnresolvedOverride: inputConfig.onUnresolvedOverride ?? 'error',
-    defaultBg: inputConfig.defaultBg ?? firstBg,
-    stepSelectionStrategy: inputConfig.stepSelectionStrategy ?? 'closest',
-  };
-
-  if (!firstBg) {
-    warnings.push('No backgrounds defined — defaultBg will be empty string');
-  } else if (!inputConfig.defaultBg) {
-    warnings.push(`defaultBg not set — using first background key "${firstBg}" (JSON key order dependent)`);
-  }
-
-  return { ramps, backgrounds, semantics, config };
+  return { ramps, backgrounds, semantics, stacks, config };
 }

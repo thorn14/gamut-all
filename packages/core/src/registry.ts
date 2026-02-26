@@ -14,7 +14,7 @@ import type {
   VisionMode,
   ValidationResult,
 } from './types.js';
-import { ALL_FONT_SIZES, ALL_STACKS, ALL_VISION_MODES } from './types.js';
+import { ALL_FONT_SIZES, ALL_VISION_MODES } from './types.js';
 
 function makeKey(
   token: string,
@@ -37,6 +37,7 @@ function buildVariantsForToken(
   stepSelectionStrategy: ProcessedInput['config']['stepSelectionStrategy'],
   visionMode: VisionMode,
   variantMap: Map<VariantKey, ResolvedVariant>,
+  stackNames: StackClass[],
 ): void {
   const allBgs = Array.from(backgrounds.keys());
 
@@ -47,33 +48,39 @@ function buildVariantsForToken(
     compliance,
     wcagTarget,
     ALL_FONT_SIZES,
-    ALL_STACKS,
+    stackNames,
     stepSelectionStrategy,
   );
-  const patchedMap = patchWithOverrides(autoRules, overrides, allBgs, ALL_FONT_SIZES, ALL_STACKS);
+  const patchedMap = patchWithOverrides(autoRules, overrides, allBgs, ALL_FONT_SIZES, stackNames);
 
   for (const [bgName, bg] of backgrounds) {
-    for (const fontSize of ALL_FONT_SIZES) {
-      const mapKey = `${bgName}__${fontSize}__root`;
-      const step = patchedMap.has(mapKey) ? patchedMap.get(mapKey)! : defaultStep;
-      const stepData = ramp.steps[step];
-      if (!stepData) continue;
+    for (const stack of stackNames) {
+      const surface = bg.surfaces.get(stack);
+      if (!surface) continue;
 
-      const context = {
-        fontSizePx: parseInt(fontSize, 10),
-        fontWeight: 400,
-        target: 'text' as const,
-        level: wcagTarget,
-      };
-      const complianceResult = compliance.evaluate(stepData.hex, bg.hex, context);
+      for (const fontSize of ALL_FONT_SIZES) {
+        const mapKey = `${bgName}__${fontSize}__${stack}`;
+        const step = patchedMap.has(mapKey) ? patchedMap.get(mapKey)! : defaultStep;
+        const stepData = ramp.steps[step];
+        if (!stepData) continue;
 
-      const varKey = makeKey(tokenName, fontSize, bgName, 'root', visionMode);
-      variantMap.set(varKey, {
-        ramp: ramp.name,
-        step,
-        hex: stepData.hex,
-        compliance: complianceResult,
-      });
+        const context = {
+          fontSizePx: parseInt(fontSize, 10),
+          fontWeight: 400,
+          target: 'text' as const,
+          level: wcagTarget,
+        };
+        // Compliance checked against the stack's surface hex, not bg.hex
+        const complianceResult = compliance.evaluate(stepData.hex, surface.hex, context);
+
+        const varKey = makeKey(tokenName, fontSize, bgName, stack, visionMode);
+        variantMap.set(varKey, {
+          ramp: ramp.name,
+          step,
+          hex: stepData.hex,
+          compliance: complianceResult,
+        });
+      }
     }
   }
 }
@@ -90,6 +97,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
 
   const wcagTarget = processed.config.wcagTarget;
   const stepSelectionStrategy = processed.config.stepSelectionStrategy;
+  const stackNames = Array.from(processed.stacks.keys());
 
   for (const [tokenName, semantic] of processed.semantics) {
     // Set default hex
@@ -110,6 +118,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
       stepSelectionStrategy,
       'default',
       variantMap,
+      stackNames,
     );
 
     // Build interaction variants
@@ -132,6 +141,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         stepSelectionStrategy,
         'default',
         variantMap,
+        stackNames,
       );
     }
 
@@ -151,6 +161,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         stepSelectionStrategy,
         visionMode,
         variantMap,
+        stackNames,
       );
     }
   }

@@ -65,6 +65,57 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           }
         }
       }
+
+      if (bg['tone'] !== undefined) {
+        if (typeof bg['tone'] !== 'object' || bg['tone'] === null || Array.isArray(bg['tone'])) {
+          errors.push(`backgrounds.${bgName}.tone must be an object`);
+        } else {
+          const tone = bg['tone'] as Record<string, unknown>;
+          for (const [toneMode, toneVal] of Object.entries(tone)) {
+            if (typeof toneVal !== 'object' || toneVal === null || Array.isArray(toneVal)) {
+              errors.push(`backgrounds.${bgName}.tone.${toneMode} must be an object`);
+              continue;
+            }
+            const t = toneVal as Record<string, unknown>;
+
+            let toneRampSteps: unknown[] | undefined;
+            if (t['ramp'] !== undefined) {
+              if (typeof t['ramp'] !== 'string') {
+                errors.push(`backgrounds.${bgName}.tone.${toneMode}.ramp must be a string`);
+              } else {
+                const toneRamp = primitives[t['ramp']];
+                if (!toneRamp) {
+                  errors.push(`backgrounds.${bgName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
+                } else if (Array.isArray(toneRamp)) {
+                  toneRampSteps = toneRamp;
+                }
+              }
+            }
+
+            if (t['step'] !== undefined) {
+              const steps = toneRampSteps ?? (
+                typeof bg['ramp'] === 'string' && Array.isArray(primitives[bg['ramp']])
+                  ? primitives[bg['ramp']] as unknown[]
+                  : []
+              );
+              if (typeof t['step'] !== 'number' || !Number.isInteger(t['step']) || t['step'] < 0 || t['step'] >= steps.length) {
+                errors.push(`backgrounds.${bgName}.tone.${toneMode}.step ${String(t['step'])} is out of bounds`);
+              }
+            }
+
+            if (t['fallback'] !== undefined) {
+              if (!Array.isArray(t['fallback']) || t['fallback'].some(v => typeof v !== 'string')) {
+                errors.push(`backgrounds.${bgName}.tone.${toneMode}.fallback must be an array of strings`);
+              }
+            }
+            if (t['aliases'] !== undefined) {
+              if (!Array.isArray(t['aliases']) || t['aliases'].some(v => typeof v !== 'string')) {
+                errors.push(`backgrounds.${bgName}.tone.${toneMode}.aliases must be an array of strings`);
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -106,6 +157,58 @@ export function validateSchema(input: unknown): SchemaValidationResult {
               sem['overrides'].forEach((ov: unknown, i: number) => {
                 validateOverride(ov, `semantics.${tokenName}.overrides[${i}]`, rampSteps.length, backgrounds, errors);
               });
+            }
+          }
+
+          // tone
+          if (sem['tone'] !== undefined) {
+            if (typeof sem['tone'] !== 'object' || sem['tone'] === null || Array.isArray(sem['tone'])) {
+              errors.push(`semantics.${tokenName}.tone must be an object`);
+            } else {
+              const tone = sem['tone'] as Record<string, unknown>;
+              for (const [toneMode, toneVal] of Object.entries(tone)) {
+                if (typeof toneVal !== 'object' || toneVal === null || Array.isArray(toneVal)) {
+                  errors.push(`semantics.${tokenName}.tone.${toneMode} must be an object`);
+                  continue;
+                }
+                const t = toneVal as Record<string, unknown>;
+
+                let toneRampSteps: unknown[] = rampSteps;
+                if (t['ramp'] !== undefined) {
+                  if (typeof t['ramp'] !== 'string') {
+                    errors.push(`semantics.${tokenName}.tone.${toneMode}.ramp must be a string`);
+                  } else {
+                    const toneRamp = primitives[t['ramp']];
+                    if (!toneRamp) {
+                      errors.push(`semantics.${tokenName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
+                    } else if (Array.isArray(toneRamp)) {
+                      toneRampSteps = toneRamp;
+                    }
+                  }
+                }
+
+                if (t['defaultStep'] !== undefined) {
+                  if (typeof t['defaultStep'] !== 'number' || !Number.isInteger(t['defaultStep']) || t['defaultStep'] < 0 || t['defaultStep'] >= toneRampSteps.length) {
+                    errors.push(`semantics.${tokenName}.tone.${toneMode}.defaultStep ${String(t['defaultStep'])} is out of bounds`);
+                  }
+                }
+
+                if (t['overrides'] !== undefined) {
+                  if (!Array.isArray(t['overrides'])) {
+                    errors.push(`semantics.${tokenName}.tone.${toneMode}.overrides must be an array`);
+                  } else {
+                    t['overrides'].forEach((ov: unknown, i: number) => {
+                      validateOverride(
+                        ov,
+                        `semantics.${tokenName}.tone.${toneMode}.overrides[${i}]`,
+                        toneRampSteps.length,
+                        backgrounds,
+                        errors,
+                      );
+                    });
+                  }
+                }
+              }
             }
           }
 
