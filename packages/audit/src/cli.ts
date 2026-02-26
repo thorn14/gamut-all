@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { deserializeRegistry, wcag21, apca } from '@gamut-all/core';
 import { auditRegistry, auditDOM } from './runner.js';
 import { formatText, formatJSON } from './report.js';
+import { auditCoverage, formatCoverageText, formatCoverageJSON } from './coverage.js';
 
 const USAGE = `
 Usage: gamut-audit [options]
@@ -13,11 +14,15 @@ Options:
   --engine <id>       Compliance engine: wcag21 (default) | apca
   --level <level>     Compliance level: AA (default) | AAA
   --format <fmt>      Output format: text (default) | json
+  --report <type>     Report type: audit (default) | coverage
+  --font-size <px>    Font size for coverage report in px (default: 16)
   --help              Show this help
 
 Examples:
   gamut-audit --registry ./dist/registry.json
   gamut-audit --registry ./dist/registry.json --html ./dist/index.html --format json
+  gamut-audit --registry ./dist/registry.json --report coverage
+  gamut-audit --registry ./dist/registry.json --report coverage --font-size 12 --format json
 `.trim();
 
 type Serialized = Parameters<typeof deserializeRegistry>[0];
@@ -29,12 +34,14 @@ interface JsdomLike {
 async function main(): Promise<void> {
   const { values, positionals: _ } = parseArgs({
     options: {
-      registry: { type: 'string' },
-      html:     { type: 'string' },
-      engine:   { type: 'string', default: 'wcag21' },
-      level:    { type: 'string', default: 'AA' },
-      format:   { type: 'string', default: 'text' },
-      help:     { type: 'boolean', default: false },
+      registry:    { type: 'string' },
+      html:        { type: 'string' },
+      engine:      { type: 'string', default: 'wcag21' },
+      level:       { type: 'string', default: 'AA' },
+      format:      { type: 'string', default: 'text' },
+      report:      { type: 'string', default: 'audit' },
+      'font-size': { type: 'string', default: '16' },
+      help:        { type: 'boolean', default: false },
     },
     allowPositionals: false,
     strict: true,
@@ -68,7 +75,21 @@ async function main(): Promise<void> {
   const engine = engineId === 'apca' ? apca : wcag21;
   const level = (values.level === 'AAA' ? 'AAA' : 'AA') as 'AA' | 'AAA';
 
-  // Run registry audit
+  const fmt = values.format ?? 'text';
+  const reportType = values.report ?? 'audit';
+
+  // ── Coverage report ───────────────────────────────────────────────────────
+  if (reportType === 'coverage') {
+    const fontSizePx = parseInt(values['font-size'] ?? '16', 10);
+    const coverageReport = auditCoverage(registry, engine, level, { fontSizePx });
+    const output = fmt === 'json'
+      ? formatCoverageJSON(coverageReport)
+      : formatCoverageText(coverageReport);
+    console.log(output);
+    process.exit(0);
+  }
+
+  // ── Standard audit ────────────────────────────────────────────────────────
   const result = auditRegistry(registry, engine, level);
 
   // Optionally audit a static HTML file
@@ -98,7 +119,6 @@ async function main(): Promise<void> {
   }
 
   // Format output
-  const fmt = values.format ?? 'text';
   const output = fmt === 'json' ? formatJSON(result) : formatText(result);
   console.log(output);
 
