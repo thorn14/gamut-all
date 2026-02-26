@@ -14,14 +14,27 @@ Contextual design token resolution for accessible color systems. Resolves semant
 
 ## Installation
 
+> **Note:** These packages are not yet published to npm. Use them from within this monorepo, or publish them to a private registry first.
+
+Within this workspace, packages are linked via the `workspace:*` protocol. Always run `pnpm install` from the **workspace root**:
+
 ```sh
-# Core only (Node, SSR, Vite plugin)
+# From the repo root
+pnpm install
+```
+
+To add a workspace package as a dependency of another package in the monorepo:
+
+```sh
+# Always use the workspace: protocol — never pnpm add @gamut-all/core without it
+pnpm add @gamut-all/core --workspace --filter @your-package/name
+```
+
+Once published to a registry, installation will be:
+
+```sh
 pnpm add @gamut-all/core
-
-# React
 pnpm add @gamut-all/core @gamut-all/react
-
-# CI audit CLI
 pnpm add -D @gamut-all/audit
 ```
 
