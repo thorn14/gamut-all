@@ -1,5 +1,7 @@
 # gamut-all
 
+![Demo](demo.mov)
+
 Design tokens that know where they are.
 
 Most token systems give you variables. You still wire up dark mode, handle modals and tooltips, manage color vision deficiencies, and check contrast ratios yourself. Every project, from scratch.
