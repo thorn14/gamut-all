@@ -1,12 +1,12 @@
 # gamut-all
 
-![Demo](demo.mov)
+![Demo](demo.gif)
 
-Design tokens that know where they are.
+Design tokens that are automatic.
 
-Most token systems give you variables. You still wire up dark mode, handle modals and tooltips, manage color vision deficiencies, and check contrast ratios yourself. Every project, from scratch.
+Most token systems are hand curated for every single state, with every possible combination. I've built systems that relied on multiple themes, elevations, and varying backgrounds and text colors.
 
-gamut-all does that work. Define your ramps. Name your surfaces. It finds the right color for every context — background, elevation, vision mode — and guarantees WCAG AA/AAA compliance at build time.
+gamut-all does that work. Define your ramps. Name your surfaces. It finds the right color for every context — background, elevation, vision mode — and guarantees WCAG AA/AAA compliance at build time. If a specified step doesn't work, it will choose the next closest color that maps properly. No more semantic token soup.
 
 ---
 
