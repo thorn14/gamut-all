@@ -8,6 +8,55 @@ Most token systems are hand curated for every single state, with every possible 
 
 gamut-all does that work. Define your ramps. Name your surfaces. It finds the right color for every context — background, elevation, vision mode — and guarantees WCAG AA/AAA compliance at build time. If a specified step doesn't work, it will choose the next closest color that maps properly. No more semantic token soup.
 
+**How it works.** You define color ramps (ordered arrays of hex values) and name your surface contexts. The engine evaluates every token × surface × font size × elevation × vision mode combination at build time and emits a flat CSS custom properties file. At runtime, `data-bg`, `data-stack`, and `data-vision` attributes on DOM elements activate the right values through the CSS cascade — no JavaScript required for standard usage.
+
+**What's possible.**
+
+- **Themes** — `data-bg="light"` / `"dark"` / any named background switches the full token set automatically
+- **Elevation** — `data-stack="card"` / `"modal"` / `"tooltip"` shifts the surface one or more ramp steps and re-resolves every token against the new surface, no `data-bg` override needed
+- **Vision modes** — `data-vision="deuteranopia"` swaps any token that declares an alternate ramp, leaving the rest unchanged
+- **Tone variants** — per-surface ramp overrides let you shift the entire palette (warm stone, cool gray, night neutral) without duplicating token definitions
+- **Interactions** — `hover`, `active`, and `focus` steps emit as separate CSS vars (`--fg-link-hover`) with no extra config
+- **Compliance** — WCAG 2.1 or APCA; AA or AAA; verified at build time with a CLI coverage report showing exactly which ramp steps pass on which surfaces
+
+---
+
+## vs. Standard Semantic Token Systems
+
+Traditional semantic token systems (Style Dictionary, Theo, W3C Design Tokens) ask you to define every combination by hand:
+
+```json
+{
+  "color-text-primary-light":              { "value": "{color-slate-900}" },
+  "color-text-primary-dark":               { "value": "{color-slate-100}" },
+  "color-text-primary-light-card":         { "value": "{color-slate-900}" },
+  "color-text-primary-dark-card":          { "value": "{color-slate-200}" },
+  "color-text-primary-light-modal":        { "value": "{color-slate-900}" },
+  "color-text-primary-dark-modal":         { "value": "{color-slate-300}" },
+  "color-text-primary-deuteranopia-light": { "value": "{color-slate-900}" },
+  "color-text-primary-deuteranopia-dark":  { "value": "{color-slate-100}" }
+  ...
+}
+```
+
+Every new surface, stack level, font size, vision mode, or interaction state multiplies the work. Compliance is checked manually — or not at all. When a ramp changes, every downstream token is suspect.
+
+The combinatorial math is brutal. A modest system — 7 tokens, 3 backgrounds, 6 elevations, 6 font sizes, 5 vision modes — has **6,300 possible combinations** before interaction states. Teams handle this by only supporting a fraction of them and leaving the rest as undocumented behaviour.
+
+**gamut-all collapses that to a single config.** The same 7-token system, fully specified with all combinations generated and compliance-verified, is 125 lines of JSON producing 1,404 resolved variants automatically.
+
+| | Standard tokens | gamut-all |
+|---|---|---|
+| Define each theme variant | ✗ manually | ✓ automatic |
+| Define each elevation variant | ✗ manually | ✓ automatic |
+| Define vision mode overrides | ✗ manually | ✓ declare ramp, rest is generated |
+| Compliance checked | ✗ manually or not at all | ✓ at build time, every variant |
+| New surface added | ✗ update every token | ✓ update one background entry |
+| Ramp color changed | ✗ audit all downstream tokens | ✓ re-run build |
+| Coverage visibility | ✗ none | ✓ `gamut-audit --report coverage` |
+
+The tradeoff: gamut-all requires ramp-based color definitions. If your palette is arbitrary (non-sequential hex values with no ramp structure), the auto-resolution can't work. Ramps are the prerequisite — which is already best practice for any system that needs dark mode.
+
 ---
 
 ## Installation
