@@ -8,6 +8,9 @@ Most token systems are hand curated for every single state, with every possible 
 
 gamut-all does that work. Define your ramps. Name your surfaces. It finds the right color for every context — background, elevation, vision mode — and guarantees WCAG AA/AAA compliance at build time. If a specified step doesn't work, it will choose the next closest color that maps properly. No more semantic token soup.
 
+![Automatic text contrast](/gamut-all/auto-text-contrast.png)
+![Automatic stacking background contrast](/gamut-all/text-stacking.png)
+
 **How it works.** You define color ramps (ordered arrays of hex values) and name your surface contexts. The engine evaluates every token × surface × font size × elevation × vision mode combination at build time and emits a flat CSS custom properties file. At runtime, `data-bg`, `data-stack`, and `data-vision` attributes on DOM elements activate the right values through the CSS cascade — no JavaScript required for standard usage.
 
 **What's possible.**

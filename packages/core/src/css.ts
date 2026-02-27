@@ -192,6 +192,28 @@ export function generateCSS(registry: TokenRegistry): string {
         lines.push('}');
         lines.push('');
       }
+
+      // [data-vision="X"] [data-bg="Y"] [data-stack="Z"] — vision overrides on elevated stack elements.
+      // Required because [data-bg] [data-stack] sets vars directly on the data-stack element, which
+      // shadows inherited vars from the data-bg element — vision overrides must target the same element.
+      for (const stack of nonRootStacks) {
+        const visionStackValues = resolveAll(bgName, stack, visionMode);
+        const defaultStackValues = resolveAll(bgName, stack, 'default');
+        const visionStackVars: string[] = [];
+
+        for (const [tokenName, hex] of visionStackValues) {
+          if (hex !== defaultStackValues.get(tokenName)) {
+            visionStackVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
+          }
+        }
+
+        if (visionStackVars.length > 0) {
+          lines.push(`[data-vision="${visionMode}"] [data-bg="${bgName}"] [data-stack="${stack}"] {`);
+          lines.push(...visionStackVars);
+          lines.push('}');
+          lines.push('');
+        }
+      }
     }
   }
 
