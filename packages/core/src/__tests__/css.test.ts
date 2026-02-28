@@ -18,7 +18,7 @@ const input: TokenInput = {
       '#9a3412', '#7c2d12',
     ],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
   },
@@ -88,15 +88,15 @@ describe('generateCSS', () => {
     expect(css).toContain('--neutral-9:');
   });
 
-  it('contains [data-bg] overrides for non-default backgrounds', () => {
-    expect(css).toContain('[data-bg="dark"]');
+  it('contains [data-theme] overrides for non-default themes', () => {
+    expect(css).toContain('[data-theme="dark"]');
   });
 
   it('vision mode block uses descendant combinator (space)', () => {
-    // [data-vision="deuteranopia"] [data-bg="dark"] — SPACE between selectors
-    const hasDescendant = css.includes('[data-vision="deuteranopia"] [data-bg=');
-    const hasCompound = css.includes('[data-vision="deuteranopia"][data-bg=');
-    // If vision+bg combo exists, it must use descendant combinator
+    // [data-vision="deuteranopia"] [data-theme="dark"] — SPACE between selectors
+    const hasDescendant = css.includes('[data-vision="deuteranopia"] [data-theme=');
+    const hasCompound = css.includes('[data-vision="deuteranopia"][data-theme=');
+    // If vision+theme combo exists, it must use descendant combinator
     if (hasDescendant || hasCompound) {
       expect(hasDescendant).toBe(true);
       expect(hasCompound).toBe(false);
@@ -130,11 +130,11 @@ describe('generateCSS', () => {
     }
   });
 
-  it('only emits standalone [data-bg] block if values differ from :root', () => {
-    // white is the default bg — no standalone [data-bg="white"] { block should appear.
-    // Vision descendant selectors like [data-vision="X"] [data-bg="white"] are fine.
-    // A standalone block starts a new line with [data-bg="white"] at the very beginning.
-    const standaloneBlock = /^\[data-bg="white"\]\s*\{/m.test(css);
+  it('only emits standalone [data-theme] block if values differ from :root', () => {
+    // white is the default theme — no standalone [data-theme="white"] { block should appear.
+    // Vision descendant selectors like [data-vision="X"] [data-theme="white"] are fine.
+    // A standalone block starts a new line with [data-theme="white"] at the very beginning.
+    const standaloneBlock = /^\[data-theme="white"\]\s*\{/m.test(css);
     expect(standaloneBlock).toBe(false);
   });
 });

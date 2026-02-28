@@ -5,7 +5,8 @@ import type {
   ProcessedInput,
   ProcessedRamp,
   ProcessedStep,
-  ProcessedBackground,
+  ProcessedTheme,
+  ProcessedSurface,
   ProcessedSemantic,
   ContextOverrideInput,
   StackClass,
@@ -68,10 +69,10 @@ export function processInput(input: TokenInput): ProcessedInput {
     ramps.set(rampName, { name: rampName, steps, stepCount: steps.length });
   }
 
-  // 3. Resolve config + stacks (must happen before backgrounds)
+  // 3. Resolve config + stacks (must happen before themes)
   const inputConfig = input.config ?? {};
-  const backgroundKeys = Object.keys(input.backgrounds);
-  const firstBg = backgroundKeys[0] ?? '';
+  const themeKeys = Object.keys(input.themes);
+  const firstTheme = themeKeys[0] ?? '';
 
   if (inputConfig.stacks?.root !== undefined && inputConfig.stacks.root !== 0) {
     throw new Error('Stack "root" must have offset 0');
@@ -90,26 +91,26 @@ export function processInput(input: TokenInput): ProcessedInput {
     wcagTarget: inputConfig.wcagTarget ?? 'AA' as const,
     complianceEngine: inputConfig.complianceEngine ?? 'wcag21' as const,
     onUnresolvedOverride: inputConfig.onUnresolvedOverride ?? 'error' as const,
-    defaultBg: inputConfig.defaultBg ?? firstBg,
+    defaultTheme: inputConfig.defaultTheme ?? firstTheme,
     stepSelectionStrategy: inputConfig.stepSelectionStrategy ?? 'closest' as const,
   };
 
-  if (!firstBg) {
-    warnings.push('No backgrounds defined — defaultBg will be empty string');
-  } else if (!inputConfig.defaultBg) {
-    warnings.push(`defaultBg not set — using first background key "${firstBg}" (JSON key order dependent)`);
+  if (!firstTheme) {
+    warnings.push('No themes defined — defaultTheme will be empty string');
+  } else if (!inputConfig.defaultTheme) {
+    warnings.push(`defaultTheme not set — using first theme key "${firstTheme}" (JSON key order dependent)`);
   }
 
-  // 4. Build ProcessedBackground for each background (uses resolved stacks)
-  const backgrounds = new Map<string, ProcessedBackground>();
-  for (const [bgName, bgInput] of Object.entries(input.backgrounds)) {
+  // 4. Build ProcessedTheme for each theme (uses resolved stacks)
+  const themes = new Map<string, ProcessedTheme>();
+  for (const [bgName, bgInput] of Object.entries(input.themes)) {
     const ramp = ramps.get(bgInput.ramp);
     if (!ramp) {
-      throw new Error(`Background "${bgName}" references unknown ramp "${bgInput.ramp}"`);
+      throw new Error(`Theme "${bgName}" references unknown ramp "${bgInput.ramp}"`);
     }
     const step = ramp.steps[bgInput.step];
     if (!step) {
-      throw new Error(`Background "${bgName}" step ${bgInput.step} is out of bounds`);
+      throw new Error(`Theme "${bgName}" step ${bgInput.step} is out of bounds`);
     }
 
     // Determine elevation direction: steps above midpoint are dark → go lighter
@@ -129,7 +130,7 @@ export function processInput(input: TokenInput): ProcessedInput {
       });
     }
 
-    backgrounds.set(bgName, {
+    themes.set(bgName, {
       name: bgName,
       ramp: bgInput.ramp,
       step: bgInput.step,
@@ -142,7 +143,27 @@ export function processInput(input: TokenInput): ProcessedInput {
     });
   }
 
-  // 5. Build ProcessedSemantic for each semantic
+  // 5. Build ProcessedSurface for each surface
+  const processedSurfaces = new Map<string, ProcessedSurface>();
+  for (const [name, s] of Object.entries(input.surfaces ?? {})) {
+    const ramp = ramps.get(s.ramp);
+    if (!ramp) {
+      throw new Error(`Surface "${name}" references unknown ramp "${s.ramp}"`);
+    }
+    const step = ramp.steps[s.step];
+    if (!step) {
+      throw new Error(`Surface "${name}" step ${s.step} out of bounds`);
+    }
+    processedSurfaces.set(name, {
+      name,
+      ramp: s.ramp,
+      step: s.step,
+      hex: step.hex,
+      relativeLuminance: step.relativeLuminance,
+    });
+  }
+
+  // 6. Build ProcessedSemantic for each semantic
   const semantics = new Map<string, ProcessedSemantic>();
   for (const [tokenName, semInput] of Object.entries(input.semantics)) {
     const ramp = ramps.get(semInput.ramp);
@@ -189,5 +210,5 @@ export function processInput(input: TokenInput): ProcessedInput {
     });
   }
 
-  return { ramps, backgrounds, semantics, stacks, config };
+  return { ramps, themes, surfaces: processedSurfaces, semantics, stacks, config };
 }

@@ -10,7 +10,7 @@ interface StackLayerProps extends HTMLAttributes<HTMLElement> {
 
 export function StackLayer({ stack, bg, as: Tag = 'div', children, ...rest }: StackLayerProps) {
   return (
-    <Tag data-stack={stack} data-bg={bg} {...rest}>
+    <Tag data-stack={stack} data-theme={bg} {...rest}>
       {children}
     </Tag>
   );

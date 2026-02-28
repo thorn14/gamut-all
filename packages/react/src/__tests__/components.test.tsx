@@ -17,7 +17,7 @@ function wrap(ui: React.ReactNode) {
 describe('TokenizedText', () => {
   it('applies style.color with a hex value', () => {
     wrap(
-      <div data-bg="white">
+      <div data-theme="white">
         <TokenizedText token="fgPrimary" data-testid="text">
           Hello
         </TokenizedText>
@@ -33,7 +33,7 @@ describe('TokenizedText', () => {
 
   it('renders children', () => {
     wrap(
-      <div data-bg="white">
+      <div data-theme="white">
         <TokenizedText token="fgPrimary" data-testid="text">
           World
         </TokenizedText>
@@ -44,7 +44,7 @@ describe('TokenizedText', () => {
 
   it('renders as a custom element via "as" prop', () => {
     wrap(
-      <div data-bg="white">
+      <div data-theme="white">
         <TokenizedText token="fgPrimary" as="p" data-testid="text">
           text
         </TokenizedText>
@@ -57,13 +57,13 @@ describe('TokenizedText', () => {
 // ── TokenizedContainer ────────────────────────────────────────────────────────
 
 describe('TokenizedContainer', () => {
-  it('sets data-bg attribute', () => {
+  it('sets data-theme attribute', () => {
     wrap(
       <TokenizedContainer bg="dark" data-testid="container">
         content
       </TokenizedContainer>
     );
-    expect(screen.getByTestId('container')).toHaveAttribute('data-bg', 'dark');
+    expect(screen.getByTestId('container')).toHaveAttribute('data-theme', 'dark');
   });
 
   it('sets data-stack attribute (defaults to root)', () => {
@@ -92,7 +92,7 @@ describe('TokenResolver', () => {
     const childFn = vi.fn().mockReturnValue(<span data-testid="inner">ok</span>);
 
     wrap(
-      <div data-bg="white">
+      <div data-theme="white">
         <TokenResolver>{childFn}</TokenResolver>
       </div>
     );
@@ -125,7 +125,7 @@ describe('withAutoContrast', () => {
     const Enhanced = withAutoContrast(TextComponent, { tokens: ['fgPrimary'] });
 
     wrap(
-      <div data-bg="white">
+      <div data-theme="white">
         <Enhanced>text</Enhanced>
       </div>
     );

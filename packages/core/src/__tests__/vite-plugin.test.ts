@@ -9,7 +9,7 @@ const TOKENS_JSON = JSON.stringify({
     neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
     blue: ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
   },
@@ -94,7 +94,7 @@ describe('designTokensPlugin', () => {
     const content = readFileSync(typesFile, 'utf-8');
     expect(content).toContain('TokenName');
     expect(content).toContain('fgPrimary');
-    expect(content).toContain('BackgroundClass');
+    expect(content).toContain('ThemeClass');
     expect(content).toContain('white');
   });
 

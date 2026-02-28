@@ -39,13 +39,13 @@ describe('TokenProvider', () => {
     );
   });
 
-  it('defaultBg is first background key from registry', () => {
+  it('defaultBg is first theme key from registry', () => {
     render(
       <TokenProvider registry={registry}>
         <ContextConsumer />
       </TokenProvider>
     );
-    const firstKey = registry.backgrounds.keys().next().value as string;
+    const firstKey = registry.themes.keys().next().value as string;
     expect(screen.getByTestId('defaultBg').textContent).toBe(firstKey);
   });
 

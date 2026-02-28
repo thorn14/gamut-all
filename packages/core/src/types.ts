@@ -25,16 +25,17 @@ export interface TokenInput {
     wcagTarget?: 'AA' | 'AAA';
     complianceEngine?: 'wcag21' | 'apca';
     onUnresolvedOverride?: 'error' | 'warn';
-    defaultBg?: string;
+    defaultTheme?: string;
     stepSelectionStrategy?: StepSelectionStrategy;
     stacks?: Partial<Record<StackClass, number>>;
   };
   primitives: Record<string, string[]>;
-  backgrounds: Record<string, BackgroundInput>;
+  themes: Record<string, ThemeInput>;
+  surfaces?: Record<string, SurfaceInput>;
   semantics: Record<string, SemanticInput>;
 }
 
-export interface BackgroundInput {
+export interface ThemeInput {
   ramp: string;
   step: number;
   fallback?: string[];
@@ -45,6 +46,11 @@ export interface BackgroundInput {
     fallback?: string[];
     aliases?: string[];
   }>;
+}
+
+export interface SurfaceInput {
+  ramp: string;
+  step: number;
 }
 
 export type SemanticInput = {
@@ -75,7 +81,8 @@ export interface ContextOverrideInput {
 
 export interface ProcessedInput {
   ramps: Map<string, ProcessedRamp>;
-  backgrounds: Map<string, ProcessedBackground>;
+  themes: Map<string, ProcessedTheme>;
+  surfaces: Map<string, ProcessedSurface>;
   semantics: Map<string, ProcessedSemantic>;
   stacks: Map<StackClass, number>;
   config: Required<Omit<NonNullable<TokenInput['config']>, 'stacks'>>;
@@ -100,7 +107,7 @@ export interface StackSurface {
   relativeLuminance: number;
 }
 
-export interface ProcessedBackground {
+export interface ProcessedTheme {
   name: string;
   ramp: string;
   step: number;
@@ -110,6 +117,14 @@ export interface ProcessedBackground {
   aliases: string[];
   elevationDirection: 'lighter' | 'darker';
   surfaces: Map<StackClass, StackSurface>;
+}
+
+export interface ProcessedSurface {
+  name: string;
+  ramp: string;
+  step: number;
+  hex: string;
+  relativeLuminance: number;
 }
 
 export interface ProcessedSemantic {
@@ -139,8 +154,9 @@ export interface ResolvedVariant {
 
 export interface TokenRegistry {
   ramps: Map<string, ProcessedRamp>;
-  backgrounds: Map<string, ProcessedBackground>;
-  backgroundFallbacks: Record<string, string[]>;
+  themes: Map<string, ProcessedTheme>;
+  themeFallbacks: Record<string, string[]>;
+  surfaces: Map<string, ProcessedSurface>;
   variantMap: Map<VariantKey, ResolvedVariant>;
   defaults: Record<string, string>;
   meta: {

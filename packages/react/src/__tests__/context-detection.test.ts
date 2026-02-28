@@ -9,29 +9,29 @@ afterEach(() => {
 // ── detectContext ─────────────────────────────────────────────────────────────
 
 describe('detectContext', () => {
-  it('returns bgClass from data-bg attribute', () => {
+  it('returns bgClass from data-theme attribute', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'dark');
+    el.setAttribute('data-theme', 'dark');
     const ctx = detectContext(el, 'white', 'default');
     expect(ctx.bgClass).toBe('dark');
   });
 
-  it('walks up to parent for data-bg', () => {
+  it('walks up to parent for data-theme', () => {
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'inverse');
+    parent.setAttribute('data-theme', 'inverse');
     const child = document.createElement('span');
     parent.appendChild(child);
     const ctx = detectContext(child, 'white', 'default');
     expect(ctx.bgClass).toBe('inverse');
   });
 
-  it('falls back to defaultBg when no data-bg found', () => {
+  it('falls back to defaultBg when no data-theme found', () => {
     const el = document.createElement('div');
     const ctx = detectContext(el, 'card', 'default');
     expect(ctx.bgClass).toBe('card');
   });
 
-  it('emits console.warn in devMode when no data-bg found', () => {
+  it('emits console.warn in devMode when no data-theme found', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = document.createElement('div');
     detectContext(el, 'white', 'default', true);
@@ -40,10 +40,10 @@ describe('detectContext', () => {
     expect(warnSpy.mock.calls[0]![0]).toContain('defaultBg="white"');
   });
 
-  it('does NOT warn in devMode when data-bg IS present', () => {
+  it('does NOT warn in devMode when data-theme IS present', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
+    el.setAttribute('data-theme', 'white');
     detectContext(el, 'white', 'default', true);
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -57,14 +57,14 @@ describe('detectContext', () => {
 
   it('passes visionMode through to context', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
+    el.setAttribute('data-theme', 'white');
     const ctx = detectContext(el, 'white', 'deuteranopia');
     expect(ctx.visionMode).toBe('deuteranopia');
   });
 
   it('reads stack from data-stack attribute', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
+    el.setAttribute('data-theme', 'white');
     el.setAttribute('data-stack', 'modal');
     const ctx = detectContext(el, 'white', 'default');
     expect(ctx.stackDepth).toBe('modal');
@@ -72,14 +72,14 @@ describe('detectContext', () => {
 
   it('defaults stackDepth to root when no data-stack present', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
+    el.setAttribute('data-theme', 'white');
     const ctx = detectContext(el, 'white', 'default');
     expect(ctx.stackDepth).toBe('root');
   });
 
   it('returns a fontSize FontSizeClass string', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
+    el.setAttribute('data-theme', 'white');
     const ctx = detectContext(el, 'white', 'default');
     expect(ctx.fontSize).toMatch(/^\d+px$/);
   });

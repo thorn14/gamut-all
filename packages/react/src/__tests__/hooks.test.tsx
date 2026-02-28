@@ -16,7 +16,7 @@ function TokenDisplay({ token, bg }: { token: string; bg?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const hex = useToken(token, ref);
   return (
-    <div ref={ref} data-bg={bg} data-testid="el">
+    <div ref={ref} data-theme={bg} data-testid="el">
       <span data-testid="hex">{hex}</span>
     </div>
   );
@@ -28,7 +28,7 @@ describe('useToken', () => {
     expect(screen.getByTestId('hex').textContent).toMatch(/^#[0-9a-fA-F]{3,6}$/);
   });
 
-  it('falls back to defaultBg when data-bg is missing', () => {
+  it('falls back to defaultBg when data-theme is missing', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     wrap(<TokenDisplay token="fgPrimary" />);
     const hex = screen.getByTestId('hex').textContent ?? '';
@@ -49,7 +49,7 @@ function AllTokensDisplay() {
   const ref = useRef<HTMLDivElement>(null);
   const tokens = useResolvedTokens(ref);
   return (
-    <div ref={ref} data-bg="white">
+    <div ref={ref} data-theme="white">
       <span data-testid="count">{Object.keys(tokens).length}</span>
       <span data-testid="fgPrimary">{tokens['fgPrimary'] ?? ''}</span>
       <span data-testid="fgLink-hover">{tokens['fgLink-hover'] ?? ''}</span>
@@ -74,7 +74,7 @@ function VarsDisplay() {
   const vars = useTokenVars(ref);
   const keys = Object.keys(vars);
   return (
-    <div ref={ref} data-bg="white">
+    <div ref={ref} data-theme="white">
       <span data-testid="firstKey">{keys[0] ?? ''}</span>
       <span data-testid="count">{keys.length}</span>
     </div>
@@ -129,7 +129,7 @@ function DesignContextDisplay() {
   const ref = useRef<HTMLDivElement>(null);
   const ctx = useDesignContext(ref);
   return (
-    <div ref={ref} data-bg="white" data-stack="card">
+    <div ref={ref} data-theme="white" data-stack="card">
       <span data-testid="ctx">{ctx ? ctx.bgClass : 'null'}</span>
     </div>
   );

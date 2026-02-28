@@ -23,7 +23,7 @@ const input: TokenInput = {
       '#9a3412', '#7c2d12',
     ],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['light', 'card'] },
     light: { ramp: 'neutral', step: 1, fallback: ['white', 'card'] },
     card: { ramp: 'neutral', step: 2, fallback: ['light', 'white'] },

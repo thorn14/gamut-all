@@ -9,7 +9,10 @@ export { apca, softClamp } from './compliance/apca.js';
 export type {
   TokenInput,
   SemanticInput,
-  BackgroundInput,
+  ThemeInput,
+  SurfaceInput,
+  ProcessedTheme,
+  ProcessedSurface,
   ContextOverrideInput,
   TokenRegistry,
   DesignContext,
@@ -25,3 +28,4 @@ export type {
 } from './types.js';
 export { ALL_FONT_SIZES, ALL_STACKS, DEFAULT_STACK_NAMES, ALL_VISION_MODES } from './types.js';
 export type { StackSurface } from './types.js';
+export type { SerializedRegistry } from './serialize.js';

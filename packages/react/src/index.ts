@@ -14,4 +14,4 @@ export {
   useTokenContext,
 } from './hooks.js';
 export type { TokenContextValue } from './context.js';
-export { warnMissingDataBg, checkDataBgCoverage } from './audit-helpers.js';
+export { warnMissingDataTheme, checkDataThemeCoverage } from './audit-helpers.js';

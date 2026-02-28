@@ -13,7 +13,7 @@ const neutralHexes = [
 
 const baseInput: TokenInput = {
   primitives: { neutral: neutralHexes },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
     inverse: { ramp: 'neutral', step: 9 },
@@ -30,13 +30,13 @@ function getProcessed() {
 describe('findClosestPassingStep', () => {
   const processed = getProcessed();
   const neutral = processed.ramps.get('neutral')!;
-  const whiteBg = processed.backgrounds.get('white')!;
+  const whiteTheme = processed.themes.get('white')!;
 
   it('returns preferredStep if it passes', () => {
     // Step 8 (#262626) easily passes AA on white
     const result = findClosestPassingStep(
       neutral, 8,
-      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, whiteTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'darker',
     );
     expect(result).toBe(8);
@@ -46,7 +46,7 @@ describe('findClosestPassingStep', () => {
     // Step 4 (#a3a3a3) fails AA on white — should find closer passing step going dark
     const result = findClosestPassingStep(
       neutral, 4,
-      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, whiteTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'darker',
     );
     expect(result).not.toBeNull();
@@ -56,10 +56,10 @@ describe('findClosestPassingStep', () => {
   it('searches lighter when direction=lighter', () => {
     // On dark bg (#262626), step 5 (#737373) fails AA (~2.7:1).
     // Searching lighter (toward index 0) should find step 4 (#a3a3a3) which passes (~5.2:1).
-    const darkBg = processed.backgrounds.get('dark')!;
+    const darkTheme = processed.themes.get('dark')!;
     const result = findClosestPassingStep(
       neutral, 5,
-      (hex) => wcag21.evaluate(hex, darkBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, darkTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'lighter',
     );
     expect(result).not.toBeNull();
@@ -80,7 +80,7 @@ describe('findClosestPassingStep', () => {
   it('either direction returns closer passing step', () => {
     const result = findClosestPassingStep(
       neutral, 5,
-      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, whiteTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'either',
     );
     // Should find a passing step
@@ -92,15 +92,15 @@ describe('autoGenerateRules', () => {
   it('generates rules for failing contexts', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
-    // fgSecondary step 5 (#737373) may fail on some backgrounds
+    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    // fgSecondary step 5 (#737373) may fail on some themes
     expect(Array.isArray(rules)).toBe(true);
   });
 
   it('generates rules across all stack levels', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // Rules now span all stacks — each rule has a valid stack name
     const stacksInRules = new Set(rules.map(r => r.stack));
     expect(stacksInRules.size).toBeGreaterThan(1); // multiple stacks are represented
@@ -114,8 +114,8 @@ describe('autoGenerateRules', () => {
     // Step 8 (#262626) on white has 21:1 contrast — no rules needed
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    // Use only white background
-    const onlyWhite = new Map([['white', processed.backgrounds.get('white')!]]);
+    // Use only white theme
+    const onlyWhite = new Map([['white', processed.themes.get('white')!]]);
     const rules = autoGenerateRules(neutral, 8, onlyWhite, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     expect(rules).toHaveLength(0);
   });
@@ -124,7 +124,7 @@ describe('autoGenerateRules', () => {
     // Step 5 (#737373) on dark bg (#262626): low contrast → need lighter step
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const onlyDark = new Map([['dark', processed.backgrounds.get('dark')!]]);
+    const onlyDark = new Map([['dark', processed.themes.get('dark')!]]);
     const rules = autoGenerateRules(neutral, 5, onlyDark, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // Should generate rules
     expect(rules.length).toBeGreaterThan(0);
@@ -136,7 +136,7 @@ describe('autoGenerateRules', () => {
   it('deduplicates rules with same bg+fontSize+stack', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     const keys = rules.map(r => `${r.bg}__${r.fontSize}__${r.stack}`);
     const unique = new Set(keys);
     expect(keys.length).toBe(unique.size);
@@ -145,7 +145,7 @@ describe('autoGenerateRules', () => {
   it('mirror-closest strategy prefers mirrored step for root stack', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const onlyDark = new Map([['dark', processed.backgrounds.get('dark')!]]);
+    const onlyDark = new Map([['dark', processed.themes.get('dark')!]]);
 
     const rules = autoGenerateRules(
       neutral,
@@ -170,7 +170,7 @@ describe('autoGenerateRules', () => {
   it('uses AAA target when requested', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const onlyWhite = new Map([['white', processed.backgrounds.get('white')!]]);
+    const onlyWhite = new Map([['white', processed.themes.get('white')!]]);
     const rules = autoGenerateRules(neutral, 5, onlyWhite, wcag21, 'AAA', ALL_FONT_SIZES, ALL_STACKS);
 
     expect(rules.length).toBeGreaterThan(0);

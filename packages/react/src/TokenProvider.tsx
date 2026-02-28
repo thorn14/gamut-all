@@ -12,7 +12,7 @@ interface TokenProviderProps {
 export function TokenProvider({ registry, defaultVisionMode = 'default', children }: TokenProviderProps) {
   const [visionMode, setVisionMode] = useState<VisionMode>(defaultVisionMode);
 
-  const firstBg = registry.backgrounds.keys().next().value as string | undefined;
+  const firstBg = registry.themes.keys().next().value as string | undefined;
   const defaultBg = firstBg ?? '';
 
   return (

@@ -1,4 +1,4 @@
-import type { TokenRegistry, VariantKey, ResolvedVariant, ProcessedRamp, ProcessedBackground } from './types.js';
+import type { TokenRegistry, VariantKey, ResolvedVariant, ProcessedRamp, ProcessedTheme, ProcessedSurface } from './types.js';
 
 // ── djb2 hash — avoids node:crypto dependency ────────────────────────────────
 
@@ -20,7 +20,7 @@ interface SerializedRamp {
   stepCount: number;
 }
 
-interface SerializedBackground {
+interface SerializedTheme {
   name: string;
   ramp: string;
   step: number;
@@ -30,6 +30,14 @@ interface SerializedBackground {
   aliases: string[];
   elevationDirection: 'lighter' | 'darker';
   surfaces: [string, { step: number; hex: string; relativeLuminance: number }][];
+}
+
+interface SerializedSurface {
+  name: string;
+  ramp: string;
+  step: number;
+  hex: string;
+  relativeLuminance: number;
 }
 
 interface SerializedVariant {
@@ -46,11 +54,12 @@ interface SerializedVariant {
 }
 
 export interface SerializedRegistry {
-  version: 1;
+  version: 2;
   meta: TokenRegistry['meta'];
   ramps: [string, SerializedRamp][];
-  backgrounds: [string, SerializedBackground][];
-  backgroundFallbacks: Record<string, string[]>;
+  themes: [string, SerializedTheme][];
+  themeFallbacks: Record<string, string[]>;
+  surfaces: [string, SerializedSurface][];
   variantMap: [string, SerializedVariant][];
   defaults: Record<string, string>;
 }
@@ -71,7 +80,7 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
     }]
   );
 
-  const backgrounds: [string, SerializedBackground][] = Array.from(registry.backgrounds.entries()).map(
+  const themes: [string, SerializedTheme][] = Array.from(registry.themes.entries()).map(
     ([key, bg]) => [key, {
       name: bg.name,
       ramp: bg.ramp,
@@ -89,6 +98,16 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
     }]
   );
 
+  const surfaces: [string, SerializedSurface][] = Array.from(registry.surfaces.entries()).map(
+    ([key, surface]) => [key, {
+      name: surface.name,
+      ramp: surface.ramp,
+      step: surface.step,
+      hex: surface.hex,
+      relativeLuminance: surface.relativeLuminance,
+    }]
+  );
+
   const variantMap: [string, SerializedVariant][] = Array.from(registry.variantMap.entries()).map(
     ([key, variant]) => [key, {
       ramp: variant.ramp,
@@ -99,11 +118,12 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
   );
 
   return {
-    version: 1,
+    version: 2,
     meta: registry.meta,
     ramps,
-    backgrounds,
-    backgroundFallbacks: registry.backgroundFallbacks,
+    themes,
+    themeFallbacks: registry.themeFallbacks,
+    surfaces,
     variantMap,
     defaults: registry.defaults,
   };
@@ -120,11 +140,15 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
     }])
   );
 
-  const backgrounds = new Map<string, ProcessedBackground>(
-    serialized.backgrounds.map(([key, bg]) => [key, {
+  const themes = new Map<string, ProcessedTheme>(
+    serialized.themes.map(([key, bg]) => [key, {
       ...bg,
       surfaces: new Map(bg.surfaces),
     }])
+  );
+
+  const surfaces = new Map<string, ProcessedSurface>(
+    serialized.surfaces.map(([key, surface]) => [key, surface])
   );
 
   const variantMap = new Map<VariantKey, ResolvedVariant>(
@@ -133,8 +157,9 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
 
   return {
     ramps,
-    backgrounds,
-    backgroundFallbacks: serialized.backgroundFallbacks,
+    themes,
+    themeFallbacks: serialized.themeFallbacks,
+    surfaces,
     variantMap,
     defaults: serialized.defaults,
     meta: serialized.meta,

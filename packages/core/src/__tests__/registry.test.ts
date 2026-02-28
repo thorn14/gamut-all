@@ -17,7 +17,7 @@ const baseInput: TokenInput = {
       '#1e40af', '#1e3a8a',
     ],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['light'] },
     light: { ramp: 'neutral', step: 1 },
     dark: { ramp: 'neutral', step: 8, fallback: ['inverse'] },
@@ -53,9 +53,9 @@ describe('buildRegistry', () => {
     expect(registry.defaults['fgLink-active']).toBe('#1e3a8a');
   });
 
-  it('populates backgroundFallbacks', () => {
-    expect(registry.backgroundFallbacks['white']).toEqual(['light']);
-    expect(registry.backgroundFallbacks['dark']).toEqual(['inverse']);
+  it('populates themeFallbacks', () => {
+    expect(registry.themeFallbacks['white']).toEqual(['light']);
+    expect(registry.themeFallbacks['dark']).toEqual(['inverse']);
   });
 
   it('has meta with expected fields', () => {
@@ -73,7 +73,7 @@ describe('buildRegistry', () => {
     for (const key of registry.variantMap.keys()) {
       if (key.startsWith('fgPrimary__') && key.endsWith('__default')) count++;
     }
-    expect(count).toBe(4 * 6 * 6); // 4 backgrounds × 6 font sizes × 6 stacks
+    expect(count).toBe(4 * 6 * 6); // 4 themes × 6 font sizes × 6 stacks
   });
 
   it('generates interaction token variants', () => {

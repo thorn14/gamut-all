@@ -1,7 +1,7 @@
 import type { Plugin, ResolvedConfig } from 'vite';
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { processInput } from '../processor.js';
 import { buildRegistry, validateRegistry } from '../registry.js';
 import { generateCSS } from '../css.js';
@@ -33,14 +33,14 @@ function generateTypes(input: TokenInput): string {
       }
     }
   }
-  const bgClasses = Object.keys(input.backgrounds);
+  const themeClasses = Object.keys(input.themes);
   const rampNames = Object.keys(input.primitives);
 
   const lines = [
     '// Auto-generated — do not edit',
     `export type TokenName = ${baseTokens.map(t => `'${t}'`).join(' | ') || 'never'};`,
     `export type InteractionTokenName = ${interactionTokens.map(t => `'${t}'`).join(' | ') || 'never'};`,
-    `export type BackgroundClass = ${bgClasses.map(b => `'${b}'`).join(' | ') || 'never'};`,
+    `export type ThemeClass = ${themeClasses.map(b => `'${b}'`).join(' | ') || 'never'};`,
     `export type RampName = ${rampNames.map(r => `'${r}'`).join(' | ') || 'never'};`,
   ];
   return lines.join('\n') + '\n';
@@ -53,8 +53,19 @@ function buildAndEmit(
   log: (msg: string) => void,
 ): TokenRegistry {
   const raw = readFileSync(inputPath, 'utf-8');
-  const input = JSON.parse(raw) as TokenInput;
+  const tokenInput = JSON.parse(raw) as TokenInput & { $primitives?: string };
 
+  // Resolve $primitives external file
+  if (tokenInput['$primitives']) {
+    const primitivesPath = resolve(dirname(inputPath), tokenInput['$primitives']);
+    const primitivesRaw = readFileSync(primitivesPath, 'utf-8');
+    const primitivesData = JSON.parse(primitivesRaw) as Record<string, string[]>;
+    // Merge: inline primitives take precedence
+    tokenInput.primitives = { ...primitivesData, ...(tokenInput.primitives ?? {}) };
+    delete tokenInput['$primitives'];
+  }
+
+  const input = tokenInput as TokenInput;
   const processed = processInput(input);
   const registry = buildRegistry(processed, wcag21);
   const validation = validateRegistry(registry);

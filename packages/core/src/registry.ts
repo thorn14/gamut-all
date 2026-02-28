@@ -3,7 +3,7 @@ import { djb2Hash } from './serialize.js';
 import type {
   ProcessedInput,
   ProcessedRamp,
-  ProcessedBackground,
+  ProcessedTheme,
   ProcessedSemantic,
   ComplianceEngine,
   TokenRegistry,
@@ -31,7 +31,7 @@ function buildVariantsForToken(
   ramp: ProcessedRamp,
   defaultStep: number,
   overrides: ProcessedSemantic['overrides'],
-  backgrounds: Map<string, ProcessedBackground>,
+  themes: Map<string, ProcessedTheme>,
   compliance: ComplianceEngine,
   wcagTarget: 'AA' | 'AAA',
   stepSelectionStrategy: ProcessedInput['config']['stepSelectionStrategy'],
@@ -39,12 +39,12 @@ function buildVariantsForToken(
   variantMap: Map<VariantKey, ResolvedVariant>,
   stackNames: StackClass[],
 ): void {
-  const allBgs = Array.from(backgrounds.keys());
+  const allBgs = Array.from(themes.keys());
 
   const autoRules = autoGenerateRules(
     ramp,
     defaultStep,
-    backgrounds,
+    themes,
     compliance,
     wcagTarget,
     ALL_FONT_SIZES,
@@ -53,7 +53,7 @@ function buildVariantsForToken(
   );
   const patchedMap = patchWithOverrides(autoRules, overrides, allBgs, ALL_FONT_SIZES, stackNames);
 
-  for (const [bgName, bg] of backgrounds) {
+  for (const [bgName, bg] of themes) {
     for (const stack of stackNames) {
       const surface = bg.surfaces.get(stack);
       if (!surface) continue;
@@ -88,11 +88,11 @@ function buildVariantsForToken(
 export function buildRegistry(processed: ProcessedInput, compliance: ComplianceEngine): TokenRegistry {
   const variantMap = new Map<VariantKey, ResolvedVariant>();
   const defaults: Record<string, string> = {};
-  const backgroundFallbacks: Record<string, string[]> = {};
+  const themeFallbacks: Record<string, string[]> = {};
 
-  // Build backgroundFallbacks
-  for (const [bgName, bg] of processed.backgrounds) {
-    backgroundFallbacks[bgName] = bg.fallback;
+  // Build themeFallbacks
+  for (const [bgName, bg] of processed.themes) {
+    themeFallbacks[bgName] = bg.fallback;
   }
 
   const wcagTarget = processed.config.wcagTarget;
@@ -112,7 +112,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
       semantic.ramp,
       semantic.defaultStep,
       semantic.overrides,
-      processed.backgrounds,
+      processed.themes,
       compliance,
       wcagTarget,
       stepSelectionStrategy,
@@ -135,7 +135,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         semantic.ramp,
         interaction.step,
         interaction.overrides,
-        processed.backgrounds,
+        processed.themes,
         compliance,
         wcagTarget,
         stepSelectionStrategy,
@@ -155,7 +155,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         visionData.ramp,
         visionData.defaultStep,
         visionData.overrides,
-        processed.backgrounds,
+        processed.themes,
         compliance,
         wcagTarget,
         stepSelectionStrategy,
@@ -181,8 +181,9 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
 
   return {
     ramps: processed.ramps,
-    backgrounds: processed.backgrounds,
-    backgroundFallbacks,
+    themes: processed.themes,
+    themeFallbacks,
+    surfaces: processed.surfaces,
     variantMap,
     defaults,
     meta,

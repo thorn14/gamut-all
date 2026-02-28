@@ -42,7 +42,7 @@ export function resolveToken(
   }
 
   // 4. Relax background using declared fallback chain — try current visionMode then 'default'
-  for (const bg of registry.backgroundFallbacks[bgClass] ?? []) {
+  for (const bg of registry.themeFallbacks[bgClass] ?? []) {
     const bKey = `${token}__${fontSize}__${bg}__root__${visionMode}`;
     const bFallback = registry.variantMap.get(bKey as Parameters<typeof registry.variantMap.get>[0]);
     if (bFallback) return bFallback.hex;

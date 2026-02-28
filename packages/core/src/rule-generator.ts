@@ -1,6 +1,6 @@
 import type {
   ProcessedRamp,
-  ProcessedBackground,
+  ProcessedTheme,
   ComplianceEngine,
   FontSizeClass,
   StackClass,
@@ -75,7 +75,7 @@ function deduplicateRules(rules: ContextRule[]): ContextRule[] {
 export function autoGenerateRules(
   tokenRamp: ProcessedRamp,
   defaultStep: number,
-  backgrounds: Map<string, ProcessedBackground>,
+  themes: Map<string, ProcessedTheme>,
   compliance: ComplianceEngine,
   wcagTarget: 'AA' | 'AAA',
   fontSizes: FontSizeClass[],
@@ -84,7 +84,7 @@ export function autoGenerateRules(
 ): ContextRule[] {
   const rules: ContextRule[] = [];
 
-  for (const [bgName, bg] of backgrounds) {
+  for (const [bgName, bg] of themes) {
     for (const stack of stacks) {
       const surface = bg.surfaces.get(stack);
       if (!surface) continue;

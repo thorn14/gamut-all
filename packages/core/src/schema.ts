@@ -38,42 +38,42 @@ export function validateSchema(input: unknown): SchemaValidationResult {
     }
   }
 
-  // ── backgrounds ─────────────────────────────────────────────────────────────
-  if (!obj['backgrounds'] || typeof obj['backgrounds'] !== 'object' || Array.isArray(obj['backgrounds'])) {
-    errors.push('backgrounds must be an object');
+  // ── themes ──────────────────────────────────────────────────────────────────
+  if (!obj['themes'] || typeof obj['themes'] !== 'object' || Array.isArray(obj['themes'])) {
+    errors.push('themes must be an object');
   } else {
-    const backgrounds = obj['backgrounds'] as Record<string, unknown>;
+    const themes = obj['themes'] as Record<string, unknown>;
     const primitives = (typeof obj['primitives'] === 'object' && obj['primitives'] !== null && !Array.isArray(obj['primitives']))
       ? obj['primitives'] as Record<string, unknown>
       : {};
 
-    for (const [bgName, bgVal] of Object.entries(backgrounds)) {
+    for (const [bgName, bgVal] of Object.entries(themes)) {
       if (typeof bgVal !== 'object' || bgVal === null || Array.isArray(bgVal)) {
-        errors.push(`backgrounds.${bgName} must be an object`);
+        errors.push(`themes.${bgName} must be an object`);
         continue;
       }
       const bg = bgVal as Record<string, unknown>;
       if (typeof bg['ramp'] !== 'string') {
-        errors.push(`backgrounds.${bgName}.ramp must be a string`);
+        errors.push(`themes.${bgName}.ramp must be a string`);
       } else {
         const rampSteps = primitives[bg['ramp']];
         if (!rampSteps) {
-          errors.push(`backgrounds.${bgName}.ramp references unknown ramp "${bg['ramp']}"`);
+          errors.push(`themes.${bgName}.ramp references unknown ramp "${bg['ramp']}"`);
         } else if (Array.isArray(rampSteps)) {
           if (typeof bg['step'] !== 'number' || !Number.isInteger(bg['step']) || bg['step'] < 0 || bg['step'] >= rampSteps.length) {
-            errors.push(`backgrounds.${bgName}.step ${String(bg['step'])} is out of bounds for ramp "${bg['ramp']}" (length ${rampSteps.length})`);
+            errors.push(`themes.${bgName}.step ${String(bg['step'])} is out of bounds for ramp "${bg['ramp']}" (length ${rampSteps.length})`);
           }
         }
       }
 
       if (bg['tone'] !== undefined) {
         if (typeof bg['tone'] !== 'object' || bg['tone'] === null || Array.isArray(bg['tone'])) {
-          errors.push(`backgrounds.${bgName}.tone must be an object`);
+          errors.push(`themes.${bgName}.tone must be an object`);
         } else {
           const tone = bg['tone'] as Record<string, unknown>;
           for (const [toneMode, toneVal] of Object.entries(tone)) {
             if (typeof toneVal !== 'object' || toneVal === null || Array.isArray(toneVal)) {
-              errors.push(`backgrounds.${bgName}.tone.${toneMode} must be an object`);
+              errors.push(`themes.${bgName}.tone.${toneMode} must be an object`);
               continue;
             }
             const t = toneVal as Record<string, unknown>;
@@ -81,11 +81,11 @@ export function validateSchema(input: unknown): SchemaValidationResult {
             let toneRampSteps: unknown[] | undefined;
             if (t['ramp'] !== undefined) {
               if (typeof t['ramp'] !== 'string') {
-                errors.push(`backgrounds.${bgName}.tone.${toneMode}.ramp must be a string`);
+                errors.push(`themes.${bgName}.tone.${toneMode}.ramp must be a string`);
               } else {
                 const toneRamp = primitives[t['ramp']];
                 if (!toneRamp) {
-                  errors.push(`backgrounds.${bgName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
+                  errors.push(`themes.${bgName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
                 } else if (Array.isArray(toneRamp)) {
                   toneRampSteps = toneRamp;
                 }
@@ -99,19 +99,59 @@ export function validateSchema(input: unknown): SchemaValidationResult {
                   : []
               );
               if (typeof t['step'] !== 'number' || !Number.isInteger(t['step']) || t['step'] < 0 || t['step'] >= steps.length) {
-                errors.push(`backgrounds.${bgName}.tone.${toneMode}.step ${String(t['step'])} is out of bounds`);
+                errors.push(`themes.${bgName}.tone.${toneMode}.step ${String(t['step'])} is out of bounds`);
               }
             }
 
             if (t['fallback'] !== undefined) {
               if (!Array.isArray(t['fallback']) || t['fallback'].some(v => typeof v !== 'string')) {
-                errors.push(`backgrounds.${bgName}.tone.${toneMode}.fallback must be an array of strings`);
+                errors.push(`themes.${bgName}.tone.${toneMode}.fallback must be an array of strings`);
               }
             }
             if (t['aliases'] !== undefined) {
               if (!Array.isArray(t['aliases']) || t['aliases'].some(v => typeof v !== 'string')) {
-                errors.push(`backgrounds.${bgName}.tone.${toneMode}.aliases must be an array of strings`);
+                errors.push(`themes.${bgName}.tone.${toneMode}.aliases must be an array of strings`);
               }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── surfaces ────────────────────────────────────────────────────────────────
+  if (obj['surfaces'] !== undefined) {
+    if (typeof obj['surfaces'] !== 'object' || Array.isArray(obj['surfaces'])) {
+      errors.push('surfaces must be an object');
+    } else {
+      const surfaces = obj['surfaces'] as Record<string, unknown>;
+      const primitives = (typeof obj['primitives'] === 'object' && obj['primitives'] !== null && !Array.isArray(obj['primitives']))
+        ? obj['primitives'] as Record<string, unknown>
+        : {};
+
+      for (const [surfaceName, surfaceVal] of Object.entries(surfaces)) {
+        if (typeof surfaceVal !== 'object' || surfaceVal === null || Array.isArray(surfaceVal)) {
+          errors.push(`surfaces.${surfaceName} must be an object`);
+          continue;
+        }
+        const s = surfaceVal as Record<string, unknown>;
+
+        // Reject theme-only fields
+        for (const forbidden of ['fallback', 'tone', 'aliases']) {
+          if (s[forbidden] !== undefined) {
+            errors.push(`surfaces.${surfaceName} must not have "${forbidden}" (surfaces are fixed hexes, not themes)`);
+          }
+        }
+
+        if (typeof s['ramp'] !== 'string') {
+          errors.push(`surfaces.${surfaceName}.ramp must be a string`);
+        } else {
+          const rampSteps = primitives[s['ramp']];
+          if (!rampSteps) {
+            errors.push(`surfaces.${surfaceName}.ramp references unknown ramp "${s['ramp']}"`);
+          } else if (Array.isArray(rampSteps)) {
+            if (typeof s['step'] !== 'number' || !Number.isInteger(s['step']) || s['step'] < 0 || s['step'] >= rampSteps.length) {
+              errors.push(`surfaces.${surfaceName}.step ${String(s['step'])} is out of bounds for ramp "${s['ramp']}" (length ${rampSteps.length})`);
             }
           }
         }
@@ -127,8 +167,8 @@ export function validateSchema(input: unknown): SchemaValidationResult {
     const primitives = (typeof obj['primitives'] === 'object' && obj['primitives'] !== null && !Array.isArray(obj['primitives']))
       ? obj['primitives'] as Record<string, unknown>
       : {};
-    const backgrounds = (typeof obj['backgrounds'] === 'object' && obj['backgrounds'] !== null && !Array.isArray(obj['backgrounds']))
-      ? obj['backgrounds'] as Record<string, unknown>
+    const themes = (typeof obj['themes'] === 'object' && obj['themes'] !== null && !Array.isArray(obj['themes']))
+      ? obj['themes'] as Record<string, unknown>
       : {};
 
     for (const [tokenName, semVal] of Object.entries(semantics)) {
@@ -155,7 +195,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
               errors.push(`semantics.${tokenName}.overrides must be an array`);
             } else {
               sem['overrides'].forEach((ov: unknown, i: number) => {
-                validateOverride(ov, `semantics.${tokenName}.overrides[${i}]`, rampSteps.length, backgrounds, errors);
+                validateOverride(ov, `semantics.${tokenName}.overrides[${i}]`, rampSteps.length, themes, errors);
               });
             }
           }
@@ -202,7 +242,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
                         ov,
                         `semantics.${tokenName}.tone.${toneMode}.overrides[${i}]`,
                         toneRampSteps.length,
-                        backgrounds,
+                        themes,
                         errors,
                       );
                     });
@@ -229,7 +269,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
                 }
                 if (state['overrides'] !== undefined && Array.isArray(state['overrides'])) {
                   state['overrides'].forEach((ov: unknown, i: number) => {
-                    validateOverride(ov, `semantics.${tokenName}.interactions.${stateName}.overrides[${i}]`, rampSteps.length, backgrounds, errors);
+                    validateOverride(ov, `semantics.${tokenName}.interactions.${stateName}.overrides[${i}]`, rampSteps.length, themes, errors);
                   });
                 }
               }
@@ -280,15 +320,15 @@ export function validateSchema(input: unknown): SchemaValidationResult {
       errors.push('config must be an object');
     } else {
       const config = obj['config'] as Record<string, unknown>;
-      const backgrounds = (typeof obj['backgrounds'] === 'object' && obj['backgrounds'] !== null && !Array.isArray(obj['backgrounds']))
-        ? obj['backgrounds'] as Record<string, unknown>
+      const themes = (typeof obj['themes'] === 'object' && obj['themes'] !== null && !Array.isArray(obj['themes']))
+        ? obj['themes'] as Record<string, unknown>
         : {};
 
-      if (config['defaultBg'] !== undefined) {
-        if (typeof config['defaultBg'] !== 'string') {
-          errors.push('config.defaultBg must be a string');
-        } else if (!backgrounds[config['defaultBg']]) {
-          errors.push(`config.defaultBg "${config['defaultBg']}" is not a key in backgrounds`);
+      if (config['defaultTheme'] !== undefined) {
+        if (typeof config['defaultTheme'] !== 'string') {
+          errors.push('config.defaultTheme must be a string');
+        } else if (!themes[config['defaultTheme']]) {
+          errors.push(`config.defaultTheme "${config['defaultTheme']}" is not a key in themes`);
         }
       }
 
@@ -309,7 +349,7 @@ function validateOverride(
   ov: unknown,
   path: string,
   rampLength: number,
-  backgrounds: Record<string, unknown>,
+  themes: Record<string, unknown>,
   errors: string[],
 ): void {
   if (typeof ov !== 'object' || ov === null || Array.isArray(ov)) {
@@ -323,8 +363,8 @@ function validateOverride(
   if (o['bg'] !== undefined) {
     const bgs = Array.isArray(o['bg']) ? o['bg'] : [o['bg']];
     for (const bg of bgs) {
-      if (typeof bg === 'string' && !backgrounds[bg]) {
-        errors.push(`${path}.bg references unknown background "${bg}"`);
+      if (typeof bg === 'string' && !themes[bg]) {
+        errors.push(`${path}.bg references unknown theme "${bg}"`);
       }
     }
   }

@@ -7,7 +7,7 @@ const baseInput: TokenInput = {
     slate: ['#f8fafc', '#0f172a'],
     stone: ['#fafaf9', '#1c1917'],
   },
-  backgrounds: {
+  themes: {
     light: { ramp: 'slate', step: 0, tone: { warm: { ramp: 'stone', step: 0 } } },
     dark: { ramp: 'slate', step: 1 },
   },
@@ -39,10 +39,10 @@ describe('applyToneMode', () => {
     expect(result.semantics['fgAccent']?.ramp).toBe('slate');
   });
 
-  it('applies background tone overrides when mode exists', () => {
+  it('applies theme tone overrides when mode exists', () => {
     const result = applyToneMode(baseInput, 'warm');
-    expect(result.backgrounds['light']?.ramp).toBe('stone');
-    expect(result.backgrounds['light']?.step).toBe(0);
-    expect(result.backgrounds['dark']?.ramp).toBe('slate');
+    expect(result.themes['light']?.ramp).toBe('stone');
+    expect(result.themes['light']?.step).toBe(0);
+    expect(result.themes['dark']?.ramp).toBe('slate');
   });
 });

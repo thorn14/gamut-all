@@ -39,14 +39,14 @@ describe('Integration: nested StackLayers', () => {
   });
 });
 
-// ── Missing data-bg dev warning ───────────────────────────────────────────────
+// ── Missing data-theme dev warning ────────────────────────────────────────────
 
-describe('Integration: missing data-bg', () => {
+describe('Integration: missing data-theme', () => {
   it('does NOT warn in test (NODE_ENV is not "development")', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     wrap(
-      // No data-bg anywhere in the tree
+      // No data-theme anywhere in the tree
       <div>
         <LayerToken testId="token" token="fgPrimary" />
       </div>
@@ -68,7 +68,7 @@ describe('Integration: vision mode', () => {
     const registry = getTestRegistry();
     const { unmount: u1 } = render(
       <TokenProvider registry={registry} defaultVisionMode="default">
-        <div data-bg="white">
+        <div data-theme="white">
           <LayerToken testId="default-error" token="fgError" />
         </div>
       </TokenProvider>
@@ -78,7 +78,7 @@ describe('Integration: vision mode', () => {
 
     render(
       <TokenProvider registry={registry} defaultVisionMode="deuteranopia">
-        <div data-bg="white">
+        <div data-theme="white">
           <LayerToken testId="deuter-error" token="fgError" />
         </div>
       </TokenProvider>
@@ -95,7 +95,7 @@ describe('Integration: vision mode', () => {
     const registry = getTestRegistry();
     const { unmount: u1 } = render(
       <TokenProvider registry={registry} defaultVisionMode="default">
-        <div data-bg="white">
+        <div data-theme="white">
           <LayerToken testId="def" token="fgError" />
         </div>
       </TokenProvider>
@@ -105,7 +105,7 @@ describe('Integration: vision mode', () => {
 
     render(
       <TokenProvider registry={registry} defaultVisionMode="tritanopia">
-        <div data-bg="white">
+        <div data-theme="white">
           <LayerToken testId="trit" token="fgError" />
         </div>
       </TokenProvider>
