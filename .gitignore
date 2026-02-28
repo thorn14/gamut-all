@@ -3,4 +3,3 @@ dist/
 .turbo/
 *.tsbuildinfo
 .DS_Store
-examples/
