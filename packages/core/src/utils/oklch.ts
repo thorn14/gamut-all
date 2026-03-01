@@ -43,8 +43,8 @@ function delinearize(x: number): number {
 
 /**
  * Convert a W3C ColorValue (or plain hex string shorthand) to an sRGB hex string.
- * Supports srgb, srgb-linear, hsl, hwb, display-p3, a98-rgb,
- * prophoto-rgb, rec2020, oklab, oklch, lab, lch, xyz-d65, xyz-d50.
+ * Supports srgb, srgb-linear, hsl, hwb, display-p3, oklab, oklch,
+ * lab, lch, xyz-d65, xyz-d50.
  * Out-of-gamut values are clamped to sRGB.
  */
 export function colorValueToHex(cv: string | ColorValue): string {
