@@ -1,5 +1,7 @@
 import { autoGenerateRules, patchWithOverrides } from './rule-generator.js';
 import { djb2Hash } from './serialize.js';
+import { simulateCVD, oklabDE, findBestCVDStep } from './utils/cvd.js';
+import type { CVDType, CVDOptions } from './utils/cvd.js';
 import type {
   ProcessedInput,
   ProcessedRamp,
@@ -14,7 +16,7 @@ import type {
   VisionMode,
   ValidationResult,
 } from './types.js';
-import { ALL_FONT_SIZES, ALL_VISION_MODES } from './types.js';
+import { ALL_FONT_SIZES } from './types.js';
 
 function makeKey(
   token: string,
@@ -85,6 +87,108 @@ function buildVariantsForToken(
   }
 }
 
+function autoCVDVariants(
+  variantMap: Map<VariantKey, ResolvedVariant>,
+  processed: ProcessedInput,
+  compliance: ComplianceEngine,
+  opts: Required<CVDOptions>,
+): void {
+  const cvdTypes: CVDType[] = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
+  const tokenNames = Array.from(processed.semantics.keys());
+
+  for (const cvdType of cvdTypes) {
+    const visionMode = cvdType as VisionMode;
+
+    for (const [bgName, bg] of processed.backgrounds) {
+      for (const [stackName, surface] of bg.surfaces) {
+        for (const fontSize of ALL_FONT_SIZES) {
+
+          // 1. Collect all default token resolved hexes for this context
+          const contextTokens: Array<{ tokenName: string; hex: string; semantic: ProcessedSemantic }> = [];
+          for (const tokenName of tokenNames) {
+            const semantic = processed.semantics.get(tokenName)!;
+            const key = makeKey(tokenName, fontSize, bgName, stackName, 'default');
+            const variant = variantMap.get(key);
+            if (!variant) continue;
+            contextTokens.push({ tokenName, hex: variant.hex, semantic });
+          }
+
+          if (contextTokens.length < 2) continue;
+
+          // 2. Simulate all under CVD
+          const simHexes = new Map<string, string>();
+          for (const { tokenName, hex } of contextTokens) {
+            simHexes.set(tokenName, simulateCVD(hex, cvdType));
+          }
+
+          // 3. Find confused pairs
+          const confused = new Set<string>();
+          for (let i = 0; i < contextTokens.length; i++) {
+            for (let j = i + 1; j < contextTokens.length; j++) {
+              const ti = contextTokens[i]!;
+              const tj = contextTokens[j]!;
+              const defaultDE = oklabDE(ti.hex, tj.hex);
+              const cvdDE = oklabDE(simHexes.get(ti.tokenName)!, simHexes.get(tj.tokenName)!);
+              if (defaultDE > opts.distinguishableThresholdDE && cvdDE < opts.confusionThresholdDE) {
+                confused.add(ti.tokenName);
+                confused.add(tj.tokenName);
+              }
+            }
+          }
+
+          // 4. For each confused token, find best step
+          for (const tokenName of confused) {
+            const semantic = processed.semantics.get(tokenName)!;
+            const otherSimHexes = contextTokens
+              .filter(t => t.tokenName !== tokenName)
+              .map(t => simHexes.get(t.tokenName)!);
+
+            // Get the current variant hex (auto-adjusted by rule generator)
+            const defaultKey = makeKey(tokenName, fontSize, bgName, stackName, 'default');
+            const defaultVariant = variantMap.get(defaultKey);
+            if (!defaultVariant) continue;
+            const currentHex = defaultVariant.hex;
+
+            // Filter ramp steps to only those passing compliance
+            const passSteps = semantic.ramp.steps.filter((step) =>
+              compliance.evaluate(step.hex, surface.hex, {
+                fontSizePx: parseInt(fontSize, 10),
+                fontWeight: 400,
+                target: 'text' as const,
+                level: processed.config.wcagTarget,
+              }).pass
+            );
+
+            if (passSteps.length === 0) continue;
+
+            const bestHex = findBestCVDStep(passSteps, currentHex, cvdType, otherSimHexes, opts);
+            if (bestHex === null) continue;
+
+            const complianceResult = compliance.evaluate(bestHex, surface.hex, {
+              fontSizePx: parseInt(fontSize, 10),
+              fontWeight: 400,
+              target: 'text' as const,
+              level: processed.config.wcagTarget,
+            });
+
+            // Find the global step index in the ramp
+            const globalStep = semantic.ramp.steps.findIndex(s => s.hex === bestHex);
+            if (globalStep === -1) continue;
+
+            const cvdKey = makeKey(tokenName, fontSize, bgName, stackName, visionMode);
+            variantMap.set(cvdKey, {
+              ramp: semantic.ramp.name,
+              step: globalStep,
+              hex: bestHex,
+              compliance: complianceResult,
+            });
+          }
+        }
+      }
+    }
+  }
+}
+
 export function buildRegistry(processed: ProcessedInput, compliance: ComplianceEngine): TokenRegistry {
   const variantMap = new Map<VariantKey, ResolvedVariant>();
   const defaults: Record<string, string> = {};
@@ -144,26 +248,16 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         stackNames,
       );
     }
+  }
 
-    // Build vision mode variants
-    for (const [visionModeStr, visionData] of Object.entries(semantic.vision)) {
-      const visionMode = visionModeStr as VisionMode;
-      if (!ALL_VISION_MODES.includes(visionMode)) continue;
-
-      buildVariantsForToken(
-        tokenName,
-        visionData.ramp,
-        visionData.defaultStep,
-        visionData.overrides,
-        processed.backgrounds,
-        compliance,
-        wcagTarget,
-        stepSelectionStrategy,
-        visionMode,
-        variantMap,
-        stackNames,
-      );
-    }
+  // Auto-generate CVD variants after all default variants are populated
+  const cvdOpts = processed.config.cvd ?? {};
+  if (cvdOpts.enabled !== false) {
+    autoCVDVariants(variantMap, processed, compliance, {
+      enabled: true,
+      confusionThresholdDE: cvdOpts.confusionThresholdDE ?? 5,
+      distinguishableThresholdDE: cvdOpts.distinguishableThresholdDE ?? 8,
+    });
   }
 
   const meta = {

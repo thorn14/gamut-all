@@ -17,10 +17,15 @@ const input: TokenInput = {
       '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
       '#1e40af', '#1e3a8a',
     ],
-    orange: [
-      '#fff7ed', '#ffedd5', '#fed7aa', '#fdba74',
-      '#fb923c', '#f97316', '#ea580c', '#c2410c',
-      '#9a3412', '#7c2d12',
+    red: [
+      '#fef2f2', '#fee2e2', '#fecaca', '#fca5a5',
+      '#f87171', '#ef4444', '#dc2626', '#b91c1c',
+      '#991b1b', '#7f1d1d',
+    ],
+    green: [
+      '#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac',
+      '#4ade80', '#22c55e', '#16a34a', '#15803d',
+      '#166534', '#14532d',
     ],
   },
   backgrounds: {
@@ -41,11 +46,12 @@ const input: TokenInput = {
       },
     },
     fgError: {
-      ramp: 'neutral',
+      ramp: 'red',
       defaultStep: 6,
-      vision: {
-        deuteranopia: { ramp: 'orange', defaultStep: 7 },
-      },
+    },
+    fgSuccess: {
+      ramp: 'green',
+      defaultStep: 6,
     },
   },
 };
@@ -84,11 +90,14 @@ describe('resolveToken', () => {
     expect(hex).toBe(defaultHex);
   });
 
-  it('uses vision-specific ramp when available', () => {
-    const defaultHex = resolveToken('fgError', ctx({ visionMode: 'default' }), registry);
-    const deuterHex = resolveToken('fgError', ctx({ visionMode: 'deuteranopia' }), registry);
-    // Deuteranopia uses orange ramp, should differ from default
-    expect(deuterHex).not.toBe(defaultHex);
+  it('uses auto-CVD variant when available (red/green confused under deuteranopia on dark bg)', () => {
+    // On dark bg, fgError/fgSuccess use lighter steps that are confused under deuteranopia
+    const errDefault = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
+    const errDeuteran = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
+    const sucDefault = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
+    const sucDeuteran = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
+    // At least one should differ from its default under deuteranopia on dark bg
+    expect(errDeuteran !== errDefault || sucDeuteran !== sucDefault).toBe(true);
   });
 
   it('falls back through stack toward root', () => {

@@ -70,7 +70,6 @@ describe('processInput', () => {
     expect(fg!.defaultStep).toBe(8);
     expect(fg!.overrides).toEqual([]);
     expect(fg!.interactions).toEqual({});
-    expect(fg!.vision).toEqual({});
   });
 
   it('applies config defaults', () => {
@@ -128,26 +127,4 @@ describe('processInput', () => {
     expect(link!.interactions['active']!.step).toBe(8);
   });
 
-  it('processes vision overrides', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      primitives: {
-        neutral: minimalInput.primitives['neutral']!,
-        blue: ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
-      },
-      semantics: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 6,
-          vision: {
-            deuteranopia: { ramp: 'blue', defaultStep: 6 },
-          },
-        },
-      },
-    };
-    const result = processInput(input);
-    const error = result.semantics.get('fgError');
-    expect(error!.vision['deuteranopia']!.ramp.name).toBe('blue');
-    expect(error!.vision['deuteranopia']!.defaultStep).toBe(6);
-  });
 });

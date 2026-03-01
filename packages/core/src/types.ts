@@ -1,3 +1,6 @@
+import type { CVDOptions } from './utils/cvd.js';
+export type { CVDOptions };
+
 // ── Fixed dimension types ────────────────────────────────────────────────────
 
 export type FontSizeClass = '12px' | '14px' | '16px' | '20px' | '24px' | '32px';
@@ -28,6 +31,7 @@ export interface TokenInput {
     defaultBg?: string;
     stepSelectionStrategy?: StepSelectionStrategy;
     stacks?: Partial<Record<StackClass, number>>;
+    cvd?: CVDOptions;
   };
   primitives: Record<string, string[]>;
   backgrounds: Record<string, BackgroundInput>;
@@ -39,29 +43,13 @@ export interface BackgroundInput {
   step: number;
   fallback?: string[];
   aliases?: string[];
-  tone?: Record<string, {
-    ramp?: string;
-    step?: number;
-    fallback?: string[];
-    aliases?: string[];
-  }>;
 }
 
 export type SemanticInput = {
   ramp: string;
   defaultStep: number;
   overrides?: ContextOverrideInput[];
-  tone?: Record<string, {
-    ramp?: string;
-    defaultStep?: number;
-    overrides?: ContextOverrideInput[];
-  }>;
   interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
-  vision?: Record<string, {
-    ramp?: string;
-    defaultStep?: number;
-    overrides?: ContextOverrideInput[];
-  }>;
 };
 
 export interface ContextOverrideInput {
@@ -78,7 +66,7 @@ export interface ProcessedInput {
   backgrounds: Map<string, ProcessedBackground>;
   semantics: Map<string, ProcessedSemantic>;
   stacks: Map<StackClass, number>;
-  config: Required<Omit<NonNullable<TokenInput['config']>, 'stacks'>>;
+  config: Required<Omit<NonNullable<TokenInput['config']>, 'stacks' | 'cvd'>> & { cvd?: CVDOptions };
 }
 
 export interface ProcessedRamp {
@@ -118,7 +106,6 @@ export interface ProcessedSemantic {
   defaultStep: number;
   overrides: ContextOverrideInput[];
   interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }>;
-  vision: Record<string, { ramp: ProcessedRamp; defaultStep: number; overrides: ContextOverrideInput[] }>;
 }
 
 export interface ContextRule {

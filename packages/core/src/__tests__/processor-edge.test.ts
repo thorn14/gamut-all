@@ -21,43 +21,6 @@ describe('processInput — edge cases', () => {
     expect(() => processInput(bad)).toThrow(/unknown ramp/i);
   });
 
-  it('throws on vision mode referencing unknown ramp', () => {
-    const bad: TokenInput = {
-      primitives: { neutral: ['#fafafa', '#262626'] },
-      backgrounds: { white: { ramp: 'neutral', step: 0 } },
-      semantics: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 1,
-          vision: { deuteranopia: { ramp: 'ghost' } },
-        },
-      },
-    };
-    expect(() => processInput(bad)).toThrow(/unknown ramp/i);
-  });
-
-  it('uses defaultStep from base token when vision defaultStep not provided', () => {
-    const input: TokenInput = {
-      primitives: {
-        neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#262626'],
-        blue:    ['#eff6ff', '#3b82f6', '#2563eb', '#1e3a8a'],
-      },
-      backgrounds: { white: { ramp: 'neutral', step: 0 } },
-      semantics: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 3,
-          vision: { deuteranopia: { ramp: 'blue' } }, // no defaultStep
-        },
-      },
-    };
-    const result = processInput(input);
-    const error = result.semantics.get('fgError');
-    // Should inherit defaultStep=3 from base
-    expect(error!.vision['deuteranopia']!.defaultStep).toBe(3);
-    expect(error!.vision['deuteranopia']!.ramp.name).toBe('blue');
-  });
-
   it('processes interaction overrides', () => {
     const input: TokenInput = {
       primitives: {

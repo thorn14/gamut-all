@@ -1,5 +1,34 @@
 // Pure functions — no imports required.
 
+export function delinearize(x: number): number {
+  return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+}
+
+export function oklabToLinearSrgb(L: number, a: number, b: number): { r: number; g: number; b: number } {
+  // OKLab M2 inverse: OKLab → LMS (cube-root space)
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+
+  // Cube
+  const l = l_ * l_ * l_;
+  const m = m_ * m_ * m_;
+  const s = s_ * s_ * s_;
+
+  // M1 inverse: LMS → linear sRGB (Björn Ottosson)
+  return {
+    r:  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    g: -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    b: -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+  };
+}
+
+export function toHex8(r: number, g: number, b: number): string {
+  const clamp = (x: number) => Math.max(0, Math.min(255, Math.round(x * 255)));
+  const h2 = (n: number) => clamp(n).toString(16).padStart(2, '0');
+  return `#${h2(r)}${h2(g)}${h2(b)}`;
+}
+
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
   let r: number, g: number, b: number;

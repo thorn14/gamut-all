@@ -131,28 +131,6 @@ describe('validateSchema — backgrounds', () => {
     expect(result.errors.some(e => e.includes('ramp must be a string'))).toBe(true);
   });
 
-  it('accepts background tone override with ramp swap', () => {
-    const result = validateSchema({
-      ...base,
-      backgrounds: {
-        white: { ramp: 'neutral', step: 0, tone: { warm: { ramp: 'blue', step: 0 } } },
-        dark:  { ramp: 'neutral', step: 8 },
-      },
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  it('rejects background tone override with unknown ramp', () => {
-    const result = validateSchema({
-      ...base,
-      backgrounds: {
-        white: { ramp: 'neutral', step: 0, tone: { warm: { ramp: 'missing', step: 0 } } },
-        dark:  { ramp: 'neutral', step: 8 },
-      },
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('backgrounds.white.tone.warm.ramp'))).toBe(true);
-  });
 });
 
 describe('validateSchema — semantics', () => {
@@ -238,87 +216,6 @@ describe('validateSchema — semantics', () => {
     expect(result.errors.some(e => e.includes('interactions.hover.step'))).toBe(true);
   });
 
-  it('rejects vision as array', () => {
-    const result = validateSchema({
-      ...base,
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 8, vision: [] } },
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('vision must be an object'))).toBe(true);
-  });
-
-  it('rejects vision mode with unknown ramp', () => {
-    const result = validateSchema({
-      ...base,
-      semantics: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 6,
-          vision: { deuteranopia: { ramp: 'missing', defaultStep: 0 } },
-        },
-      },
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('vision.deuteranopia'))).toBe(true);
-  });
-
-  it('rejects vision mode with out-of-bounds defaultStep', () => {
-    const result = validateSchema({
-      ...base,
-      semantics: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 6,
-          vision: { deuteranopia: { defaultStep: 99 } },
-        },
-      },
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('vision.deuteranopia.defaultStep'))).toBe(true);
-  });
-
-  it('accepts valid vision override with ramp swap', () => {
-    const result = validateSchema({
-      ...base,
-      semantics: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 6,
-          vision: { deuteranopia: { ramp: 'blue', defaultStep: 6 } },
-        },
-      },
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  it('accepts valid tone override with ramp swap', () => {
-    const result = validateSchema({
-      ...base,
-      semantics: {
-        fgPrimary: {
-          ramp: 'neutral',
-          defaultStep: 8,
-          tone: { warm: { ramp: 'blue', defaultStep: 6 } },
-        },
-      },
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  it('rejects tone mode with unknown ramp', () => {
-    const result = validateSchema({
-      ...base,
-      semantics: {
-        fgPrimary: {
-          ramp: 'neutral',
-          defaultStep: 8,
-          tone: { warm: { ramp: 'missing', defaultStep: 6 } },
-        },
-      },
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('tone.warm.ramp'))).toBe(true);
-  });
 });
 
 describe('validateSchema — config', () => {

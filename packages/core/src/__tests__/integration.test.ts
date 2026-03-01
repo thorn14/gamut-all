@@ -72,10 +72,15 @@ describe('Integration: full pipeline', () => {
     expect(darkHex).not.toBe(lightHex);
   });
 
-  it('vision mode fgError uses orange ramp for deuteranopia', () => {
-    const defaultHex = resolveToken('fgError', ctx({ visionMode: 'default' }), registry);
-    const deuterHex = resolveToken('fgError', ctx({ visionMode: 'deuteranopia' }), registry);
-    expect(deuterHex).not.toBe(defaultHex);
+  it('auto-CVD: deuteranopia variant exists for fgError or fgSuccess on dark bg', () => {
+    // On dark bg, fgError/fgSuccess use lighter steps that are confused under deuteranopia
+    const errDefault = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
+    const errDeuteran = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
+    const sucDefault = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
+    const sucDeuteran = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
+    // At least one should differ from its default under deuteranopia on dark bg
+    const anyDiffers = errDeuteran !== errDefault || sucDeuteran !== sucDefault;
+    expect(anyDiffers).toBe(true);
   });
 
   it('unknown vision mode falls back to default', () => {
