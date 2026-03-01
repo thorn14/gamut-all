@@ -72,14 +72,15 @@ describe('Integration: full pipeline', () => {
     expect(darkHex).not.toBe(lightHex);
   });
 
-  it('auto-CVD: deuteranopia variant exists for fgError or fgSuccess on dark bg', () => {
-    // On dark bg, fgError/fgSuccess use lighter steps that are confused under deuteranopia
-    const errDefault = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
-    const errDeuteran = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
-    const sucDefault = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
-    const sucDeuteran = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
-    // At least one should differ from its default under deuteranopia on dark bg
-    const anyDiffers = errDeuteran !== errDefault || sucDeuteran !== sucDefault;
+  it('auto-CVD: CVD variant exists for fgError or fgSuccess on light bg', () => {
+    // On light bgs, fgError/fgSuccess use saturated dark steps that are hue-confused under protanopia.
+    // Dark bg uses very light desaturated steps (low chroma) that don't trigger hue confusion.
+    const errDefault = resolveToken('fgError',   ctx({ bgClass: 'white', visionMode: 'default' }),    registry);
+    const errProtan  = resolveToken('fgError',   ctx({ bgClass: 'white', visionMode: 'protanopia' }), registry);
+    const sucDefault = resolveToken('fgSuccess', ctx({ bgClass: 'white', visionMode: 'default' }),    registry);
+    const sucProtan  = resolveToken('fgSuccess', ctx({ bgClass: 'white', visionMode: 'protanopia' }), registry);
+    // At least one should differ from its default under protanopia on white bg
+    const anyDiffers = errProtan !== errDefault || sucProtan !== sucDefault;
     expect(anyDiffers).toBe(true);
   });
 
@@ -106,11 +107,12 @@ describe('Integration: full pipeline', () => {
     const css = generateCSS(registry);
     expect(css).toContain(':root {');
     expect(css).toContain('[data-theme="dark"]');
-    // Vision mode — descendant combinator
-    expect(css).toContain('[data-vision="deuteranopia"]');
+    // Vision mode — protanopia variants are generated for red/green confused tokens.
+    // Deuteranopia preserves luminance, so red/green often remain distinguishable by lightness.
+    expect(css).toContain('[data-vision="protanopia"]');
     // Descendant (space) not compound (no space)
-    const visionBgIdx = css.indexOf('[data-vision="deuteranopia"] [data-theme=');
-    const visionBgCompIdx = css.indexOf('[data-vision="deuteranopia"][data-theme=');
+    const visionBgIdx = css.indexOf('[data-vision="protanopia"] [data-theme=');
+    const visionBgCompIdx = css.indexOf('[data-vision="protanopia"][data-theme=');
     if (visionBgIdx !== -1 || visionBgCompIdx !== -1) {
       expect(visionBgIdx).toBeGreaterThan(-1);
       expect(visionBgCompIdx).toBe(-1);

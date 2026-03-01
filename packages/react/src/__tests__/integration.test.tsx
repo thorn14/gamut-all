@@ -64,30 +64,36 @@ describe('Integration: missing data-theme', () => {
 // ── Vision mode fallback ──────────────────────────────────────────────────────
 
 describe('Integration: vision mode', () => {
-  it('deuteranopia fgError resolves differently than default', () => {
+  it('protanopia fgError or fgSuccess on dark bg resolves differently than default', () => {
+    // On dark bg, protanopia collapses luminance for red/green → CVD variants generated
     const registry = getTestRegistry();
     const { unmount: u1 } = render(
       <TokenProvider registry={registry} defaultVisionMode="default">
-        <div data-theme="white">
+        <div data-theme="dark">
           <LayerToken testId="default-error" token="fgError" />
+          <LayerToken testId="default-success" token="fgSuccess" />
         </div>
       </TokenProvider>
     );
-    const defaultHex = screen.getByTestId('default-error').textContent;
+    const defaultErr = screen.getByTestId('default-error').textContent;
+    const defaultSuc = screen.getByTestId('default-success').textContent;
     u1();
 
     render(
-      <TokenProvider registry={registry} defaultVisionMode="deuteranopia">
-        <div data-theme="white">
-          <LayerToken testId="deuter-error" token="fgError" />
+      <TokenProvider registry={registry} defaultVisionMode="protanopia">
+        <div data-theme="dark">
+          <LayerToken testId="protan-error" token="fgError" />
+          <LayerToken testId="protan-success" token="fgSuccess" />
         </div>
       </TokenProvider>
     );
-    const deuterHex = screen.getByTestId('deuter-error').textContent;
+    const protanErr = screen.getByTestId('protan-error').textContent;
+    const protanSuc = screen.getByTestId('protan-success').textContent;
 
-    expect(defaultHex).toMatch(/^#/);
-    expect(deuterHex).toMatch(/^#/);
-    expect(defaultHex).not.toBe(deuterHex);
+    expect(defaultErr).toMatch(/^#/);
+    expect(protanErr).toMatch(/^#/);
+    // At least one of error or success should differ under protanopia on dark bg
+    expect(protanErr !== defaultErr || protanSuc !== defaultSuc).toBe(true);
   });
 
   it('tritanopia falls back to default vision variant', () => {

@@ -1,6 +1,7 @@
 import { autoGenerateRules, patchWithOverrides } from './rule-generator.js';
 import { djb2Hash } from './serialize.js';
-import { simulateCVD, oklabDE, findBestCVDStep } from './utils/cvd.js';
+import { simulateCVD, oklabHueDE, shiftHueToTarget } from './utils/cvd.js';
+import { hexToOklch } from './utils/oklch.js';
 import type { CVDType, CVDOptions } from './utils/cvd.js';
 import type {
   ProcessedInput,
@@ -89,19 +90,83 @@ function buildVariantsForToken(
   }
 }
 
+// Minimum OKLab chroma for a ramp to be considered "chromatic" (not neutral/gray).
+// Neutral ramps should not substitute for semantic color tokens under CVD correction.
+const CHROMA_MIN = 0.05;
+
+type HueBand = { sourceRanges: Array<[number, number]>; targetHue: number };
+
+// Per CVD type: which source hue bands are confused, and which target hue to shift to.
+// Hue angles are OKLCH (degrees, 0–360). Ranges are [min, max) and may wrap around 360°.
+// Tokens on ramps outside all source bands are NOT corrected for that CVD type.
+// bandA and bandB map to different target hues, ensuring confused pairs always diverge.
+const CVD_HUE_POLICY: Partial<Record<CVDType, { bandA: HueBand; bandB: HueBand }>> = {
+  protanopia: {
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },  // red/warm  → blue
+    bandB: { sourceRanges: [[90, 200]],             targetHue: 315 },  // green/teal → violet
+  },
+  protanomaly: {
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },
+    bandB: { sourceRanges: [[90, 200]],             targetHue: 315 },
+  },
+  deuteranopia: {
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },
+    bandB: { sourceRanges: [[90, 200]],            targetHue: 315 },
+  },
+  deuteranomaly: {
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },
+    bandB: { sourceRanges: [[90, 200]],            targetHue: 315 },
+  },
+  tritanopia: {
+    bandA: { sourceRanges: [[60, 110]],   targetHue: 30  },  // yellow/amber → orange/red
+    bandB: { sourceRanges: [[190, 270]],  targetHue: 300 },  // blue/cyan    → violet
+  },
+  tritanomaly: {
+    bandA: { sourceRanges: [[60, 110]],   targetHue: 30  },
+    bandB: { sourceRanges: [[190, 270]],  targetHue: 300 },
+  },
+  // achromatopsia / blueConeMonochromacy: omitted — no hue fix meaningful for grayscale vision.
+};
+
+// Returns true if hue h (degrees) falls within any of the given [min, max) ranges.
+// Ranges that wrap around 360° use min > max (e.g. [330, 60] means 330°–360° ∪ 0°–60°).
+function hueInRanges(h: number, ranges: Array<[number, number]>): boolean {
+  return ranges.some(([min, max]) =>
+    min <= max ? h >= min && h < max : h >= min || h < max,
+  );
+}
+
 function autoCVDVariants(
   variantMap: Map<VariantKey, ResolvedVariant>,
   processed: ProcessedInput,
   compliance: ComplianceEngine,
   opts: Required<CVDOptions>,
 ): void {
-  const cvdTypes: CVDType[] = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
+  const cvdTypes: CVDType[] = [
+    'protanopia', 'protanomaly',
+    'deuteranopia', 'deuteranomaly',
+    'tritanopia', 'tritanomaly',
+    'achromatopsia', 'blueConeMonochromacy',
+  ];
   const tokenNames = Array.from(processed.semantics.keys());
+
+  // Pre-compute which ramps are chromatic (non-gray) based on their median step,
+  // and record each ramp's median hue for policy-aware safe-family matching.
+  const chromaticRamps = new Set<string>();
+  const rampMedianHues = new Map<string, number>();
+  for (const [rampName, ramp] of processed.ramps) {
+    const mid = ramp.steps[Math.floor(ramp.steps.length / 2)];
+    if (mid) {
+      const { c, h } = hexToOklch(mid.hex);
+      if (c > CHROMA_MIN) chromaticRamps.add(rampName);
+      rampMedianHues.set(rampName, h);
+    }
+  }
 
   for (const cvdType of cvdTypes) {
     const visionMode = cvdType as VisionMode;
 
-    for (const [bgName, bg] of processed.backgrounds) {
+    for (const [bgName, bg] of processed.themes) {
       for (const [stackName, surface] of bg.surfaces) {
         for (const fontSize of ALL_FONT_SIZES) {
 
@@ -123,65 +188,74 @@ function autoCVDVariants(
             simHexes.set(tokenName, simulateCVD(hex, cvdType));
           }
 
-          // 3. Find confused pairs
+          // 3. Find confused pairs using HUE-ONLY ΔE.
+          //    Total ΔE (oklabDE) includes lightness, which masks hue confusion:
+          //    a light red and a dark green can have ΔE=12 even if both look olive under CVD.
+          //    oklabHueDE ignores lightness and detects hue confusion specifically.
           const confused = new Set<string>();
           for (let i = 0; i < contextTokens.length; i++) {
             for (let j = i + 1; j < contextTokens.length; j++) {
               const ti = contextTokens[i]!;
               const tj = contextTokens[j]!;
-              const defaultDE = oklabDE(ti.hex, tj.hex);
-              const cvdDE = oklabDE(simHexes.get(ti.tokenName)!, simHexes.get(tj.tokenName)!);
-              if (defaultDE > opts.distinguishableThresholdDE && cvdDE < opts.confusionThresholdDE) {
+              // Default pair must be distinguishable by hue (not just lightness)
+              const defaultHueDE = oklabHueDE(ti.hex, tj.hex);
+              // CVD-simulated pair must be hue-confused
+              const cvdHueDE = oklabHueDE(simHexes.get(ti.tokenName)!, simHexes.get(tj.tokenName)!);
+              if (defaultHueDE > opts.distinguishableThresholdDE && cvdHueDE < opts.confusionThresholdDE) {
                 confused.add(ti.tokenName);
                 confused.add(tj.tokenName);
               }
             }
           }
 
-          // 4. For each confused token, find best step
+          if (confused.size === 0) continue;
+
+          // 4. Hue-shift substitution: rotate each confused token's hue to the target angle
+          //    for its confusion band, preserving L and C.
+          //    Tokens not in any band (e.g. blue under deuteranopia) are skipped.
           for (const tokenName of confused) {
             const semantic = processed.semantics.get(tokenName)!;
-            const otherSimHexes = contextTokens
-              .filter(t => t.tokenName !== tokenName)
-              .map(t => simHexes.get(t.tokenName)!);
 
-            // Get the current variant hex (auto-adjusted by rule generator)
+            // Guard: neutral/gray ramps have ill-defined hue — skip them.
+            if (!chromaticRamps.has(semantic.ramp.name)) continue;
+
             const defaultKey = makeKey(tokenName, fontSize, bgName, stackName, 'default');
             const defaultVariant = variantMap.get(defaultKey);
             if (!defaultVariant) continue;
             const currentHex = defaultVariant.hex;
 
-            // Filter ramp steps to only those passing compliance
-            const passSteps = semantic.ramp.steps.filter((step) =>
-              compliance.evaluate(step.hex, surface.hex, {
-                fontSizePx: parseInt(fontSize, 10),
-                fontWeight: 400,
-                target: 'text' as const,
-                level: processed.config.wcagTarget,
-              }).pass
-            );
+            const policy = CVD_HUE_POLICY[cvdType];
+            if (!policy) continue; // achromatopsia — no hue fix available
 
-            if (passSteps.length === 0) continue;
+            const sourceHue = rampMedianHues.get(semantic.ramp.name);
+            if (sourceHue === undefined) continue;
 
-            const bestHex = findBestCVDStep(passSteps, currentHex, cvdType, otherSimHexes, opts);
-            if (bestHex === null) continue;
+            let targetHue: number;
+            if (hueInRanges(sourceHue, policy.bandA.sourceRanges)) {
+              targetHue = policy.bandA.targetHue;
+            } else if (hueInRanges(sourceHue, policy.bandB.sourceRanges)) {
+              targetHue = policy.bandB.targetHue;
+            } else {
+              continue; // Not in any confusion source band for this CVD type — skip.
+            }
 
-            const complianceResult = compliance.evaluate(bestHex, surface.hex, {
+            // Shift hue to target while preserving L and C.
+            const shiftedHex = shiftHueToTarget(currentHex, targetHue);
+            if (shiftedHex === currentHex) continue; // Negligible change — skip.
+
+            const complianceResult = compliance.evaluate(shiftedHex, surface.hex, {
               fontSizePx: parseInt(fontSize, 10),
               fontWeight: 400,
-              target: 'text' as const,
+              target: semantic.complianceTarget,
               level: processed.config.wcagTarget,
             });
-
-            // Find the global step index in the ramp
-            const globalStep = semantic.ramp.steps.findIndex(s => s.hex === bestHex);
-            if (globalStep === -1) continue;
+            if (!complianceResult.pass) continue; // Skip non-compliant shifted colors.
 
             const cvdKey = makeKey(tokenName, fontSize, bgName, stackName, visionMode);
             variantMap.set(cvdKey, {
-              ramp: semantic.ramp.name,
-              step: globalStep,
-              hex: bestHex,
+              ramp: semantic.ramp.name,   // original ramp (informational)
+              step: defaultVariant.step,  // original step (informational)
+              hex: shiftedHex,
               compliance: complianceResult,
             });
           }

@@ -93,14 +93,14 @@ describe('resolveToken', () => {
     expect(hex).toBe(defaultHex);
   });
 
-  it('uses auto-CVD variant when available (red/green confused under deuteranopia on dark bg)', () => {
-    // On dark bg, fgError/fgSuccess use lighter steps that are confused under deuteranopia
-    const errDefault = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
-    const errDeuteran = resolveToken('fgError', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
-    const sucDefault = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'default' }), registry);
-    const sucDeuteran = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'deuteranopia' }), registry);
-    // At least one should differ from its default under deuteranopia on dark bg
-    expect(errDeuteran !== errDefault || sucDeuteran !== sucDefault).toBe(true);
+  it('uses auto-CVD variant when available (red/green confused under protanopia on dark bg)', () => {
+    // On dark bg, fgError/fgSuccess use steps that are confused under protanopia
+    const errDefault = resolveToken('fgError',   ctx({ bgClass: 'dark', visionMode: 'default' }),    registry);
+    const errProtan  = resolveToken('fgError',   ctx({ bgClass: 'dark', visionMode: 'protanopia' }), registry);
+    const sucDefault = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'default' }),    registry);
+    const sucProtan  = resolveToken('fgSuccess', ctx({ bgClass: 'dark', visionMode: 'protanopia' }), registry);
+    // At least one should differ from its default under protanopia on dark bg
+    expect(errProtan !== errDefault || sucProtan !== sucDefault).toBe(true);
   });
 
   it('falls back through stack toward root', () => {

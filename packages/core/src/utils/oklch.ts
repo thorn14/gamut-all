@@ -8,11 +8,6 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
-function toHex8(v: number): string {
-  const byte = Math.round(clamp01(v) * 255);
-  return byte.toString(16).padStart(2, '0');
-}
-
 export function delinearize(x: number): number {
   return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
 }
@@ -37,8 +32,7 @@ export function oklabToLinearSrgb(L: number, a: number, b: number): { r: number;
 }
 
 export function toHex8(r: number, g: number, b: number): string {
-  const clamp = (x: number) => Math.max(0, Math.min(255, Math.round(x * 255)));
-  const h2 = (n: number) => clamp(n).toString(16).padStart(2, '0');
+  const h2 = (n: number) => Math.max(0, Math.min(255, Math.round(n * 255))).toString(16).padStart(2, '0');
   return `#${h2(r)}${h2(g)}${h2(b)}`;
 }
 
@@ -64,10 +58,6 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 export function linearize(x: number): number {
   return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
-}
-
-function delinearize(x: number): number {
-  return x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055;
 }
 
 /**
@@ -173,7 +163,7 @@ export function colorValueToHex(cv: string | ColorValue): string {
     }
   }
 
-  return `#${toHex8(r)}${toHex8(g)}${toHex8(bl)}`;
+  return toHex8(r, g, bl);
 }
 
 function hslFromHue(h: number): { r: number; g: number; b: number } {
@@ -185,22 +175,6 @@ function hslFromHue(h: number): { r: number; g: number; b: number } {
   if (hp < 4) return { r: 0, g: x, b: 1 };
   if (hp < 5) return { r: x, g: 0, b: 1 };
   return { r: 1, g: 0, b: x };
-}
-
-function oklabToLinearSrgb(L: number, a: number, bLab: number): { r: number; g: number; b: number } {
-  const lms_l_ = L + 0.3963377774 * a + 0.2158037573 * bLab;
-  const lms_m_ = L - 0.1055613458 * a - 0.0638541728 * bLab;
-  const lms_s_ = L - 0.0894841775 * a - 1.2914855480 * bLab;
-
-  const lms_l = lms_l_ ** 3;
-  const lms_m = lms_m_ ** 3;
-  const lms_s = lms_s_ ** 3;
-
-  return {
-    r:  4.0767416621 * lms_l - 3.3077115913 * lms_m + 0.2309699292 * lms_s,
-    g: -1.2684380046 * lms_l + 2.6097574011 * lms_m - 0.3413193965 * lms_s,
-    b: -0.0041960863 * lms_l - 0.7034186147 * lms_m + 1.7076147010 * lms_s,
-  };
 }
 
 function p3ToXyzD65(r: number, g: number, b: number): { x: number; y: number; z: number } {

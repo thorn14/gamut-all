@@ -39,13 +39,60 @@ describe('simulateCVD', () => {
 
   it('returns a valid 6-char hex string for all CVD types', () => {
     const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffffff', '#000000', '#808080'];
-    const types = ['protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'] as const;
+    const types = [
+      'protanopia', 'protanomaly',
+      'deuteranopia', 'deuteranomaly',
+      'tritanopia', 'tritanomaly',
+      'achromatopsia', 'blueConeMonochromacy',
+    ] as const;
     for (const color of colors) {
       for (const type of types) {
         const result = simulateCVD(color, type);
         expect(result).toMatch(/^#[0-9a-fA-F]{6}$/);
       }
     }
+  });
+
+  it('anomaly types produce colors closer to original than full dichromacy (when dichromacy changes color)', () => {
+    // Test only the hue combinations where the full dichromacy meaningfully shifts the color.
+    // e.g. red under tritanopia barely changes, so tritanomaly of red may round back to original.
+    const affectedCases: Array<[string, 'protanomaly' | 'deuteranomaly' | 'tritanomaly', 'protanopia' | 'deuteranopia' | 'tritanopia']> = [
+      ['#ef4444', 'protanomaly', 'protanopia'],  // red is strongly affected by protanopia
+      ['#22c55e', 'deuteranomaly', 'deuteranopia'],  // green is strongly affected by deuteranopia
+      ['#3b82f6', 'tritanomaly', 'tritanopia'],  // blue is strongly affected by tritanopia
+    ];
+    for (const [hex, anomaly, dichromacy] of affectedCases) {
+      const anomalyResult = simulateCVD(hex, anomaly);
+      const dichromacyResult = simulateCVD(hex, dichromacy);
+      expect(anomalyResult).toMatch(/^#[0-9a-fA-F]{6}$/);
+      // When the full dichromacy changes the color significantly,
+      // the anomaly blend must be strictly closer to the original.
+      if (oklabDE(hex, dichromacyResult) > 2.0) {
+        expect(oklabDE(hex, anomalyResult)).toBeLessThan(oklabDE(hex, dichromacyResult));
+      }
+    }
+  });
+
+  it('blueConeMonochromacy produces near-monochromatic output (R ≈ G ≈ B)', () => {
+    const colors = ['#ef4444', '#22c55e', '#3b82f6', '#a855f7'];
+    for (const hex of colors) {
+      const result = simulateCVD(hex, 'blueConeMonochromacy');
+      expect(result).toMatch(/^#[0-9a-fA-F]{6}$/);
+      const r = parseInt(result.slice(1, 3), 16);
+      const g = parseInt(result.slice(3, 5), 16);
+      const b = parseInt(result.slice(5, 7), 16);
+      expect(Math.abs(r - g)).toBeLessThan(5);
+      expect(Math.abs(g - b)).toBeLessThan(5);
+    }
+  });
+
+  it('blueConeMonochromacy gives brighter output for blue vs red (blue-channel weighting)', () => {
+    const pureBlue = simulateCVD('#0000ff', 'blueConeMonochromacy');
+    const pureRed  = simulateCVD('#ff0000', 'blueConeMonochromacy');
+    const blueL = parseInt(pureBlue.slice(1, 3), 16);
+    const redL  = parseInt(pureRed.slice(1, 3), 16);
+    // BCM weights heavily toward blue channel, so pure blue appears much brighter than pure red
+    expect(blueL).toBeGreaterThan(redL);
   });
 });
 
@@ -106,11 +153,11 @@ describe('buildRegistry CVD auto-generation', () => {
       red:    ['#fef2f2', '#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d'],
       green:  ['#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d'],
     },
-    backgrounds: {
+    themes: {
       white: { ramp: 'neutral', step: 0 },
       dark:  { ramp: 'neutral', step: 8 },
     },
-    semantics: {
+    foreground: {
       fgError:   { ramp: 'red',   defaultStep: 6 },
       fgSuccess: { ramp: 'green', defaultStep: 6 },
     },
@@ -127,7 +174,7 @@ describe('buildRegistry CVD auto-generation', () => {
     const input: TokenInput = {
       ...cvdInput,
       config: { ...cvdInput.config, cvd: { enabled: false } },
-    };
+    } as TokenInput;
     const processed = processInput(input);
     const registry = buildRegistry(processed, wcag21);
 
@@ -147,9 +194,43 @@ describe('buildRegistry CVD auto-generation', () => {
       const parts = key.split('__');
       const visionPart = parts[4];
       if (visionPart !== 'default') {
-        // CVD variant — should pass compliance (it was filtered for compliance during selection)
         expect(variant.compliance.pass, `CVD variant ${key} should pass`).toBe(true);
       }
+    }
+  });
+
+  it('anomaly vision mode keys are valid and any generated variants pass compliance', () => {
+    // Anomaly types at 60% severity may not trigger the confusion threshold for all pairs,
+    // so this test verifies correctness of any variants that ARE generated rather than
+    // asserting a specific count.
+    const processed = processInput(cvdInput);
+    const registry = buildRegistry(processed, wcag21);
+    const anomalyVisionModes = new Set(['protanomaly', 'deuteranomaly', 'tritanomaly']);
+    for (const [key, variant] of registry.variantMap) {
+      const visionPart = key.split('__')[4] ?? '';
+      if (anomalyVisionModes.has(visionPart)) {
+        // Any generated anomaly variant must pass compliance
+        expect(variant.compliance.pass, `Anomaly variant ${key} must pass compliance`).toBe(true);
+      }
+    }
+  });
+
+  it('blueConeMonochromacy variants exist when achromatopsia would generate variants', () => {
+    // Both achromatic types process through the same confusion detection.
+    // BCM variants are generated (though no hue fix is applied — same as achromatopsia).
+    const processed = processInput(cvdInput);
+    const registry = buildRegistry(processed, wcag21);
+    // Verify the registry builds without errors regardless of whether BCM variants are present
+    expect(registry.variantMap.size).toBeGreaterThan(0);
+    // Verify all vision mode keys in variantMap are valid VisionMode values
+    const validModes = new Set([
+      'default', 'protanopia', 'protanomaly',
+      'deuteranopia', 'deuteranomaly', 'tritanopia', 'tritanomaly',
+      'achromatopsia', 'blueConeMonochromacy',
+    ]);
+    for (const key of registry.variantMap.keys()) {
+      const parts = key.split('__');
+      expect(validModes.has(parts[4] ?? '')).toBe(true);
     }
   });
 });

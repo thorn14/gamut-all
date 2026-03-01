@@ -5,7 +5,12 @@ export type { CVDOptions };
 
 export type FontSizeClass = '12px' | '14px' | '16px' | '20px' | '24px' | '32px';
 export type StackClass = string;
-export type VisionMode = 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'achromatopsia';
+export type VisionMode =
+  | 'default'
+  | 'protanopia'    | 'protanomaly'
+  | 'deuteranopia'  | 'deuteranomaly'
+  | 'tritanopia'    | 'tritanomaly'
+  | 'achromatopsia' | 'blueConeMonochromacy';
 export type StepSelectionStrategy = 'closest' | 'mirror-closest';
 
 export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', '24px', '32px'];
@@ -14,7 +19,13 @@ export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', 
 // The library does NOT apply these automatically; only 'root' is assumed.
 export const DEFAULT_STACK_NAMES: StackClass[] = ['root', 'card', 'popover', 'tooltip', 'modal', 'overlay'];
 export const ALL_STACKS: StackClass[] = DEFAULT_STACK_NAMES;
-export const ALL_VISION_MODES: VisionMode[] = ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia'];
+export const ALL_VISION_MODES: VisionMode[] = [
+  'default',
+  'protanopia', 'protanomaly',
+  'deuteranopia', 'deuteranomaly',
+  'tritanopia', 'tritanomaly',
+  'achromatopsia', 'blueConeMonochromacy',
+];
 
 // ── Variant key ──────────────────────────────────────────────────────────────
 

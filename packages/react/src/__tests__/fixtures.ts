@@ -38,6 +38,10 @@ const tokensInput: TokenInput = {
       ramp: 'red',
       defaultStep: 6,
     },
+    fgSuccess: {
+      ramp: 'green',
+      defaultStep: 6,
+    },
   },
 };
 
