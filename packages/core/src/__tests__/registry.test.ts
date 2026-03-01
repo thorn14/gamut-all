@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { buildRegistry, validateRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const baseInput: TokenInput = {
   primitives: {
@@ -10,12 +13,12 @@ const baseInput: TokenInput = {
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
       '#a3a3a3', '#737373', '#525252', '#404040',
       '#262626', '#171717',
-    ],
+    ].map(cv),
     blue: [
       '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd',
       '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
       '#1e40af', '#1e3a8a',
-    ],
+    ].map(cv),
   },
   themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['light'] },
@@ -23,7 +26,7 @@ const baseInput: TokenInput = {
     dark: { ramp: 'neutral', step: 8, fallback: ['inverse'] },
     inverse: { ramp: 'neutral', step: 9 },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',
@@ -107,7 +110,7 @@ describe('validateRegistry', () => {
     // override that forces a step known to fail — simulating intentional designer deviation.
     const inputWithBadOverride: TokenInput = {
       ...baseInput,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,

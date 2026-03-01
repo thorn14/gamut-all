@@ -46,10 +46,18 @@ export function applyToneMode(input: TokenInput, toneMode: string): TokenInput {
     next.themes[bgName] = mergeBackgroundToneOverride(background, toneOverride);
   }
 
-  for (const [tokenName, semantic] of Object.entries(next.semantics)) {
+  for (const [tokenName, semantic] of Object.entries(next.foreground)) {
     const toneOverride = semantic.tone?.[toneMode];
     if (!toneOverride) continue;
-    next.semantics[tokenName] = mergeSemanticToneOverride(semantic, toneOverride);
+    next.foreground[tokenName] = mergeSemanticToneOverride(semantic, toneOverride);
+  }
+
+  if (next.nonText) {
+    for (const [tokenName, semantic] of Object.entries(next.nonText)) {
+      const toneOverride = semantic.tone?.[toneMode];
+      if (!toneOverride) continue;
+      next.nonText[tokenName] = mergeSemanticToneOverride(semantic, toneOverride);
+    }
   }
 
   return next;

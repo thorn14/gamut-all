@@ -17,10 +17,50 @@ export const ALL_VISION_MODES: VisionMode[] = ['default', 'deuteranopia', 'prota
 
 export type VariantKey = `${string}__${FontSizeClass}__${string}__${StackClass}__${VisionMode}`;
 
+// ── W3C Design Tokens Format Module 2025.10 annotations ─────────────────────
+
+export interface W3CAnnotations {
+  $description?: string;
+  $deprecated?: boolean | string;
+  $extensions?: Record<string, unknown>;
+}
+
+// ── W3C Design Tokens Color Module 2025.10 ──────────────────────────────────
+
+export type ColorSpace =
+  | 'srgb'
+  | 'srgb-linear'
+  | 'hsl'
+  | 'hwb'
+  | 'lab'
+  | 'lch'
+  | 'oklab'
+  | 'oklch'
+  | 'display-p3'
+  | 'a98-rgb'
+  | 'prophoto-rgb'
+  | 'rec2020'
+  | 'xyz-d65'
+  | 'xyz-d50';
+
+export type ColorComponent = number | 'none';
+
+export interface ColorValue {
+  colorSpace: ColorSpace;
+  components: [ColorComponent, ColorComponent, ColorComponent];
+  alpha?: number;
+  hex?: string;
+  $description?: string;
+  $extensions?: Record<string, unknown>;
+}
+
 // ── Input types ──────────────────────────────────────────────────────────────
 
 export interface TokenInput {
   $schema?: string;
+  $description?: string;
+  $version?: string;
+  $extensions?: Record<string, unknown>;
   config?: {
     wcagTarget?: 'AA' | 'AAA';
     complianceEngine?: 'wcag21' | 'apca';
@@ -29,18 +69,19 @@ export interface TokenInput {
     stepSelectionStrategy?: StepSelectionStrategy;
     stacks?: Partial<Record<StackClass, number>>;
   };
-  primitives: Record<string, string[]>;
+  primitives: Record<string, (string | ColorValue)[]>;
   themes: Record<string, ThemeInput>;
   surfaces?: Record<string, SurfaceInput>;
-  semantics: Record<string, SemanticInput>;
+  foreground: Record<string, SemanticInput>;
+  nonText?: Record<string, SemanticInput>;
 }
 
-export interface ThemeInput {
+export interface ThemeInput extends W3CAnnotations {
   ramp: string;
   step: number;
   fallback?: string[];
   aliases?: string[];
-  tone?: Record<string, {
+  tone?: Record<string, W3CAnnotations & {
     ramp?: string;
     step?: number;
     fallback?: string[];
@@ -48,22 +89,24 @@ export interface ThemeInput {
   }>;
 }
 
-export interface SurfaceInput {
+export interface SurfaceInput extends W3CAnnotations {
   ramp: string;
   step: number;
 }
 
-export type SemanticInput = {
+export type SemanticInput = W3CAnnotations & {
+  $type?: string;
   ramp: string;
-  defaultStep: number;
+  defaultStep?: number;
+  decorative?: boolean;
   overrides?: ContextOverrideInput[];
-  tone?: Record<string, {
+  tone?: Record<string, W3CAnnotations & {
     ramp?: string;
     defaultStep?: number;
     overrides?: ContextOverrideInput[];
   }>;
   interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
-  vision?: Record<string, {
+  vision?: Record<string, W3CAnnotations & {
     ramp?: string;
     defaultStep?: number;
     overrides?: ContextOverrideInput[];
@@ -131,6 +174,7 @@ export interface ProcessedSemantic {
   name: string;
   ramp: ProcessedRamp;
   defaultStep: number;
+  complianceTarget: 'text' | 'ui-component' | 'decorative';
   overrides: ContextOverrideInput[];
   interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }>;
   vision: Record<string, { ramp: ProcessedRamp; defaultStep: number; overrides: ContextOverrideInput[] }>;
@@ -181,7 +225,7 @@ export interface DesignContext {
 export type ComplianceContext = {
   fontSizePx: number;
   fontWeight: number;
-  target: 'text';
+  target: 'text' | 'ui-component' | 'decorative';
   level: 'AA' | 'AAA';
 };
 

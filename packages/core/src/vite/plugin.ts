@@ -7,7 +7,7 @@ import { buildRegistry, validateRegistry } from '../registry.js';
 import { generateCSS } from '../css.js';
 import { serializeRegistry } from '../serialize.js';
 import { wcag21 } from '../compliance/wcag21.js';
-import type { TokenInput, TokenRegistry } from '../types.js';
+import type { TokenInput, TokenRegistry, ColorValue } from '../types.js';
 
 const VIRTUAL_MODULE_ID = 'virtual:design-tokens';
 const RESOLVED_VIRTUAL_ID = '\0virtual:design-tokens';
@@ -24,9 +24,10 @@ function camelToKebab(str: string): string {
 }
 
 function generateTypes(input: TokenInput): string {
-  const baseTokens = Object.keys(input.semantics);
+  const allSemantics = { ...input.foreground, ...(input.nonText ?? {}) };
+  const baseTokens = Object.keys(allSemantics);
   const interactionTokens: string[] = [];
-  for (const [tokenName, sem] of Object.entries(input.semantics)) {
+  for (const [tokenName, sem] of Object.entries(allSemantics)) {
     if (sem.interactions) {
       for (const stateName of Object.keys(sem.interactions)) {
         interactionTokens.push(`${tokenName}-${stateName}`);
@@ -59,7 +60,11 @@ function buildAndEmit(
   if (tokenInput['$primitives']) {
     const primitivesPath = resolve(dirname(inputPath), tokenInput['$primitives']);
     const primitivesRaw = readFileSync(primitivesPath, 'utf-8');
-    const primitivesData = JSON.parse(primitivesRaw) as Record<string, string[]>;
+    const primitivesData = JSON.parse(primitivesRaw) as Record<string, (string | ColorValue)[]>;
+    // Strip JSON-schema metadata keys before merging
+    for (const key of Object.keys(primitivesData)) {
+      if (key.startsWith('$')) delete primitivesData[key];
+    }
     // Merge: inline primitives take precedence
     tokenInput.primitives = { ...primitivesData, ...(tokenInput.primitives ?? {}) };
     delete tokenInput['$primitives'];

@@ -1,31 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import { processInput } from '../processor.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 describe('processInput — edge cases', () => {
   it('throws on invalid hex in primitives', () => {
     const bad: TokenInput = {
-      primitives: { neutral: ['notahex'] },
+      primitives: { neutral: [{ colorSpace: 'invalid', components: [0] }] as any },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 0 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 0 } },
     };
     expect(() => processInput(bad)).toThrow();
   });
 
   it('throws on semantic referencing unknown ramp', () => {
     const bad: TokenInput = {
-      primitives: { neutral: ['#fafafa'] },
+      primitives: { neutral: ['#fafafa'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'ghost', defaultStep: 0 } },
+      foreground: { fg: { ramp: 'ghost', defaultStep: 0 } },
     };
     expect(() => processInput(bad)).toThrow(/unknown ramp/i);
   });
 
   it('throws on vision mode referencing unknown ramp', () => {
     const bad: TokenInput = {
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: {
+      foreground: {
         fgError: {
           ramp: 'neutral',
           defaultStep: 1,
@@ -39,11 +42,11 @@ describe('processInput — edge cases', () => {
   it('uses defaultStep from base token when vision defaultStep not provided', () => {
     const input: TokenInput = {
       primitives: {
-        neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#262626'],
-        blue:    ['#eff6ff', '#3b82f6', '#2563eb', '#1e3a8a'],
+        neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#262626'].map(cv),
+        blue:    ['#eff6ff', '#3b82f6', '#2563eb', '#1e3a8a'].map(cv),
       },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: {
+      foreground: {
         fgError: {
           ramp: 'neutral',
           defaultStep: 3,
@@ -61,10 +64,10 @@ describe('processInput — edge cases', () => {
   it('processes interaction overrides', () => {
     const input: TokenInput = {
       primitives: {
-        neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
+        neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
       },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: {
+      foreground: {
         fgLink: {
           ramp: 'neutral',
           defaultStep: 6,
@@ -86,12 +89,12 @@ describe('processInput — edge cases', () => {
 
   it('includes fallback and aliases from themes', () => {
     const input: TokenInput = {
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: {
         white: { ramp: 'neutral', step: 0, fallback: ['dark'], aliases: ['surface-0', 'bg-white'] },
         dark:  { ramp: 'neutral', step: 1 },
       },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 1 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 1 } },
     };
     const result = processInput(input);
     const white = result.themes.get('white');
@@ -104,10 +107,10 @@ describe('processInput — edge cases', () => {
     const input: TokenInput = {
       primitives: {
         // step 2 is brighter than step 1, breaking monotonicity
-        weird: ['#262626', '#737373', '#fafafa', '#404040', '#171717'],
+        weird: ['#262626', '#737373', '#fafafa', '#404040', '#171717'].map(cv),
       },
       themes: { dark: { ramp: 'weird', step: 0 } },
-      semantics: { fg: { ramp: 'weird', defaultStep: 4 } },
+      foreground: { fg: { ramp: 'weird', defaultStep: 4 } },
     };
     // Should not throw — just warns internally
     expect(() => processInput(input)).not.toThrow();
@@ -115,9 +118,9 @@ describe('processInput — edge cases', () => {
 
   it('config defaults: complianceEngine defaults to wcag21', () => {
     const input: TokenInput = {
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 1 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 1 } },
     };
     const result = processInput(input);
     expect(result.config.complianceEngine).toBe('wcag21');
@@ -125,9 +128,9 @@ describe('processInput — edge cases', () => {
 
   it('config defaults: onUnresolvedOverride defaults to error', () => {
     const input: TokenInput = {
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 1 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 1 } },
     };
     const result = processInput(input);
     expect(result.config.onUnresolvedOverride).toBe('error');
@@ -135,9 +138,9 @@ describe('processInput — edge cases', () => {
 
   it('config: accepts complianceEngine apca', () => {
     const input: TokenInput = {
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 1 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 1 } },
       config: { complianceEngine: 'apca' },
     };
     const result = processInput(input);

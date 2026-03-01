@@ -3,17 +3,20 @@ import { writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { designTokensPlugin } from '../vite/plugin.js';
+import { hexToColorValue } from '../utils/oklch.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const TOKENS_JSON = JSON.stringify({
   primitives: {
-    neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
-    blue: ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
+    neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
+    blue: ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'].map(cv),
   },
   themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',

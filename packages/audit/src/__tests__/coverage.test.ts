@@ -20,7 +20,7 @@ const input: TokenInput = {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'] },
     dark:  { ramp: 'neutral', step: 8, fallback: ['white'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',

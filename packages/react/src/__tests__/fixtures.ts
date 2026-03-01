@@ -21,7 +21,7 @@ const tokensInput: TokenInput = {
     dark:    { ramp: 'neutral', step: 8, fallback: ['inverse'] },
     inverse: { ramp: 'neutral', step: 9, fallback: ['dark'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary:   { ramp: 'neutral', defaultStep: 8 },
     fgSecondary: { ramp: 'neutral', defaultStep: 5 },
     fgAccent:    { ramp: 'blue',    defaultStep: 6 },

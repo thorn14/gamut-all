@@ -22,7 +22,7 @@ const input: TokenInput = {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'] },
     dark:  { ramp: 'neutral', step: 8, fallback: ['white'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',
@@ -63,7 +63,7 @@ describe('auditRegistry', () => {
     // Build a registry with a deliberately bad override
     const badInput: TokenInput = {
       ...input,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -81,7 +81,7 @@ describe('auditRegistry', () => {
   it('issue message includes key and engine id', () => {
     const badInput: TokenInput = {
       ...input,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,

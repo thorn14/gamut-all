@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { validateSchema } from '../schema.js';
+import { hexToColorValue } from '../utils/oklch.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const validPrimitives = {
-  neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
-  blue:    ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
+  neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
+  blue:    ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'].map(cv),
 };
 
 const validThemes = {
@@ -11,11 +14,11 @@ const validThemes = {
   dark:  { ramp: 'neutral', step: 8 },
 };
 
-const validSemantics = {
+const validForeground = {
   fgPrimary: { ramp: 'neutral', defaultStep: 8 },
 };
 
-const base = { primitives: validPrimitives, themes: validThemes, semantics: validSemantics };
+const base = { primitives: validPrimitives, themes: validThemes, foreground: validForeground };
 
 describe('validateSchema — top-level', () => {
   it('accepts valid minimal input', () => {
@@ -35,27 +38,33 @@ describe('validateSchema — top-level', () => {
   });
 
   it('rejects missing primitives', () => {
-    const result = validateSchema({ themes: validThemes, semantics: validSemantics });
+    const result = validateSchema({ themes: validThemes, foreground: validForeground });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives'))).toBe(true);
   });
 
   it('rejects primitives as array', () => {
-    const result = validateSchema({ primitives: [], themes: validThemes, semantics: validSemantics });
+    const result = validateSchema({ primitives: [], themes: validThemes, foreground: validForeground });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives'))).toBe(true);
   });
 
   it('rejects missing themes', () => {
-    const result = validateSchema({ primitives: validPrimitives, semantics: validSemantics });
+    const result = validateSchema({ primitives: validPrimitives, foreground: validForeground });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('themes'))).toBe(true);
   });
 
-  it('rejects missing semantics', () => {
+  it('rejects missing foreground', () => {
     const result = validateSchema({ primitives: validPrimitives, themes: validThemes });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('semantics'))).toBe(true);
+    expect(result.errors.some(e => e.includes('foreground'))).toBe(true);
+  });
+
+  it('rejects old semantics key with clear error', () => {
+    const result = validateSchema({ primitives: validPrimitives, themes: validThemes, semantics: validForeground, foreground: validForeground });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('"semantics" is not valid'))).toBe(true);
   });
 });
 
@@ -64,17 +73,17 @@ describe('validateSchema — primitives', () => {
     const result = validateSchema({
       primitives: { neutral: 'not-an-array' },
       themes: validThemes,
-      semantics: validSemantics,
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives.neutral') && e.includes('array'))).toBe(true);
   });
 
-  it('rejects invalid hex in ramp', () => {
+  it('rejects invalid ColorValue in ramp', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fafafa', 'notahex', '#262626'] },
+      primitives: { neutral: [cv('#fafafa'), { colorSpace: 'invalid', components: [0] }, cv('#262626')] },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 2 } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 2 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives.neutral[1]'))).toBe(true);
@@ -82,9 +91,9 @@ describe('validateSchema — primitives', () => {
 
   it('accepts 3-digit hex colors', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fff', '#000'] },
+      primitives: { neutral: ['#fff', '#000'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 1 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 1 } },
     });
     expect(result.valid).toBe(true);
   });
@@ -95,7 +104,7 @@ describe('validateSchema — themes', () => {
     const result = validateSchema({
       primitives: validPrimitives,
       themes: { white: { ramp: 'missing', step: 0 } },
-      semantics: validSemantics,
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('unknown ramp') && e.includes('missing'))).toBe(true);
@@ -103,9 +112,9 @@ describe('validateSchema — themes', () => {
 
   it('rejects theme with out-of-bounds step', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: { white: { ramp: 'neutral', step: 5 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 0 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 0 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('out of bounds'))).toBe(true);
@@ -115,7 +124,7 @@ describe('validateSchema — themes', () => {
     const result = validateSchema({
       primitives: validPrimitives,
       themes: { white: [] },
-      semantics: validSemantics,
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('themes.white'))).toBe(true);
@@ -125,7 +134,7 @@ describe('validateSchema — themes', () => {
     const result = validateSchema({
       primitives: validPrimitives,
       themes: { white: { ramp: 42, step: 0 } },
-      semantics: validSemantics,
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('ramp must be a string'))).toBe(true);
@@ -155,11 +164,11 @@ describe('validateSchema — themes', () => {
   });
 });
 
-describe('validateSchema — semantics', () => {
+describe('validateSchema — foreground / nonText', () => {
   it('rejects semantic with unknown ramp', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'missing', defaultStep: 0 } },
+      foreground: { fgPrimary: { ramp: 'missing', defaultStep: 0 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('unknown ramp'))).toBe(true);
@@ -167,18 +176,26 @@ describe('validateSchema — semantics', () => {
 
   it('rejects semantic with out-of-bounds defaultStep', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fafafa', '#262626'] },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
       themes: validThemes,
-      semantics: { fg: { ramp: 'neutral', defaultStep: 9 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 9 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('defaultStep'))).toBe(true);
   });
 
+  it('accepts token with no defaultStep (auto-selected)', () => {
+    const result = validateSchema({
+      ...base,
+      foreground: { fgAuto: { ramp: 'neutral' } },
+    });
+    expect(result.valid).toBe(true);
+  });
+
   it('rejects overrides as non-array', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 8, overrides: 'bad' } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 8, overrides: 'bad' } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('overrides must be an array'))).toBe(true);
@@ -187,7 +204,7 @@ describe('validateSchema — semantics', () => {
   it('rejects override with out-of-bounds step', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -202,7 +219,7 @@ describe('validateSchema — semantics', () => {
   it('rejects override referencing unknown theme', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -217,7 +234,7 @@ describe('validateSchema — semantics', () => {
   it('rejects interactions as array', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 8, interactions: [] } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 8, interactions: [] } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('interactions must be an object'))).toBe(true);
@@ -226,7 +243,7 @@ describe('validateSchema — semantics', () => {
   it('rejects interaction state with out-of-bounds step', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgLink: {
           ramp: 'neutral',
           defaultStep: 6,
@@ -241,7 +258,7 @@ describe('validateSchema — semantics', () => {
   it('rejects vision as array', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 8, vision: [] } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 8, vision: [] } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('vision must be an object'))).toBe(true);
@@ -250,7 +267,7 @@ describe('validateSchema — semantics', () => {
   it('rejects vision mode with unknown ramp', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgError: {
           ramp: 'neutral',
           defaultStep: 6,
@@ -265,7 +282,7 @@ describe('validateSchema — semantics', () => {
   it('rejects vision mode with out-of-bounds defaultStep', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgError: {
           ramp: 'neutral',
           defaultStep: 6,
@@ -280,7 +297,7 @@ describe('validateSchema — semantics', () => {
   it('accepts valid vision override with ramp swap', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgError: {
           ramp: 'neutral',
           defaultStep: 6,
@@ -294,7 +311,7 @@ describe('validateSchema — semantics', () => {
   it('accepts valid tone override with ramp swap', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -308,7 +325,7 @@ describe('validateSchema — semantics', () => {
   it('rejects tone mode with unknown ramp', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -318,6 +335,53 @@ describe('validateSchema — semantics', () => {
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('tone.warm.ramp'))).toBe(true);
+  });
+
+  it('accepts valid nonText token', () => {
+    const result = validateSchema({
+      ...base,
+      nonText: { borderMain: { ramp: 'neutral', defaultStep: 5 } },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('accepts nonText token without defaultStep', () => {
+    const result = validateSchema({
+      ...base,
+      nonText: { borderAuto: { ramp: 'neutral' } },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects nonText as array', () => {
+    const result = validateSchema({ ...base, nonText: [] });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('nonText must be an object'))).toBe(true);
+  });
+
+  it('accepts decorative: true on a nonText token', () => {
+    const result = validateSchema({
+      ...base,
+      nonText: { borderMuted: { ramp: 'neutral', defaultStep: 3, decorative: true } },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('accepts decorative: false on a nonText token', () => {
+    const result = validateSchema({
+      ...base,
+      nonText: { borderMuted: { ramp: 'neutral', defaultStep: 3, decorative: false } },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects decorative as non-boolean', () => {
+    const result = validateSchema({
+      ...base,
+      nonText: { borderMuted: { ramp: 'neutral', defaultStep: 3, decorative: 'yes' } },
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('decorative') && e.includes('boolean'))).toBe(true);
   });
 });
 

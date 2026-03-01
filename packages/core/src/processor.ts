@@ -1,5 +1,5 @@
 import { validateSchema } from './schema.js';
-import { hexToOklch, relativeLuminance } from './utils/oklch.js';
+import { colorValueToHex, hexToOklch, relativeLuminance } from './utils/oklch.js';
 import type {
   TokenInput,
   ProcessedInput,
@@ -31,15 +31,18 @@ export function processInput(input: TokenInput): ProcessedInput {
 
   const warnings: string[] = [];
 
-  // 2. Build ProcessedRamp for each primitive
+  // 2. Build ProcessedRamp for each primitive (ColorValue → hex → OKLCH)
   const ramps = new Map<string, ProcessedRamp>();
-  for (const [rampName, hexArray] of Object.entries(input.primitives)) {
-    const steps: ProcessedStep[] = hexArray.map((hex, index) => ({
-      index,
-      hex,
-      oklch: hexToOklch(hex),
-      relativeLuminance: relativeLuminance(hex),
-    }));
+  for (const [rampName, colorValues] of Object.entries(input.primitives)) {
+    const steps: ProcessedStep[] = colorValues.map((cv, index) => {
+      const hex = colorValueToHex(cv);
+      return {
+        index,
+        hex,
+        oklch: hexToOklch(hex),
+        relativeLuminance: relativeLuminance(hex),
+      };
+    });
 
     // Warn if luminance is not monotonically ordered
     let monotonic = true;
@@ -163,52 +166,75 @@ export function processInput(input: TokenInput): ProcessedInput {
     });
   }
 
-  // 6. Build ProcessedSemantic for each semantic
+  // 6. Build ProcessedSemantic for each semantic (foreground + nonText)
   const semantics = new Map<string, ProcessedSemantic>();
-  for (const [tokenName, semInput] of Object.entries(input.semantics)) {
-    const ramp = ramps.get(semInput.ramp);
-    if (!ramp) {
-      throw new Error(`Semantic "${tokenName}" references unknown ramp "${semInput.ramp}"`);
-    }
 
-    // Build interactions
-    const interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }> = {};
-    if (semInput.interactions) {
-      for (const [stateName, stateInput] of Object.entries(semInput.interactions)) {
-        interactions[stateName] = {
-          step: stateInput.step,
-          overrides: stateInput.overrides ?? [],
-        };
+  function processSemanticsSection(
+    entries: Record<string, import('./types.js').SemanticInput>,
+    complianceTarget: 'text' | 'ui-component',
+  ): void {
+    for (const [tokenName, semInput] of Object.entries(entries)) {
+      if (semantics.has(tokenName)) {
+        throw new Error(`Token "${tokenName}" appears in both foreground and nonText sections`);
       }
-    }
 
-    // Build vision overrides — resolve ramp refs
-    const vision: Record<string, { ramp: ProcessedRamp; defaultStep: number; overrides: ContextOverrideInput[] }> = {};
-    if (semInput.vision) {
-      for (const [visionMode, visionInput] of Object.entries(semInput.vision)) {
-        const visionRampName = visionInput.ramp ?? semInput.ramp;
-        const visionRamp = ramps.get(visionRampName);
-        if (!visionRamp) {
-          throw new Error(`Semantic "${tokenName}" vision "${visionMode}" references unknown ramp "${visionRampName}"`);
+      const ramp = ramps.get(semInput.ramp);
+      if (!ramp) {
+        throw new Error(`Semantic "${tokenName}" references unknown ramp "${semInput.ramp}"`);
+      }
+
+      // Resolve defaultStep: use provided value or fall back to ramp midpoint
+      const resolvedDefaultStep = semInput.defaultStep !== undefined
+        ? semInput.defaultStep
+        : Math.floor(ramp.steps.length / 2);
+
+      // Decorative tokens are WCAG-exempt — override compliance target regardless of section
+      const resolvedComplianceTarget: 'text' | 'ui-component' | 'decorative' =
+        semInput.decorative ? 'decorative' : complianceTarget;
+
+      // Build interactions
+      const interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }> = {};
+      if (semInput.interactions) {
+        for (const [stateName, stateInput] of Object.entries(semInput.interactions)) {
+          interactions[stateName] = {
+            step: stateInput.step,
+            overrides: stateInput.overrides ?? [],
+          };
         }
-        const visionDefaultStep = visionInput.defaultStep ?? semInput.defaultStep;
-        vision[visionMode] = {
-          ramp: visionRamp,
-          defaultStep: visionDefaultStep,
-          overrides: visionInput.overrides ?? [],
-        };
       }
-    }
 
-    semantics.set(tokenName, {
-      name: tokenName,
-      ramp,
-      defaultStep: semInput.defaultStep,
-      overrides: semInput.overrides ?? [],
-      interactions,
-      vision,
-    });
+      // Build vision overrides — resolve ramp refs
+      const vision: Record<string, { ramp: ProcessedRamp; defaultStep: number; overrides: ContextOverrideInput[] }> = {};
+      if (semInput.vision) {
+        for (const [visionMode, visionInput] of Object.entries(semInput.vision)) {
+          const visionRampName = visionInput.ramp ?? semInput.ramp;
+          const visionRamp = ramps.get(visionRampName);
+          if (!visionRamp) {
+            throw new Error(`Semantic "${tokenName}" vision "${visionMode}" references unknown ramp "${visionRampName}"`);
+          }
+          const visionDefaultStep = visionInput.defaultStep ?? resolvedDefaultStep;
+          vision[visionMode] = {
+            ramp: visionRamp,
+            defaultStep: visionDefaultStep,
+            overrides: visionInput.overrides ?? [],
+          };
+        }
+      }
+
+      semantics.set(tokenName, {
+        name: tokenName,
+        ramp,
+        defaultStep: resolvedDefaultStep,
+        complianceTarget: resolvedComplianceTarget,
+        overrides: semInput.overrides ?? [],
+        interactions,
+        vision,
+      });
+    }
   }
+
+  processSemanticsSection(input.foreground, 'text');
+  processSemanticsSection(input.nonText ?? {}, 'ui-component');
 
   return { ramps, themes, surfaces: processedSurfaces, semantics, stacks, config };
 }

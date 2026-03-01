@@ -20,9 +20,14 @@ export const apca: ComplianceEngine = {
   id: 'apca',
 
   evaluate(fgHex: string, bgHex: string, context: ComplianceContext): ComplianceEvaluation {
+    if (context.target === 'decorative') {
+      return { pass: true, metric: 'wcag-exempt', value: 0, required: 0 };
+    }
     const txtY = softClamp(relativeLuminance(fgHex));
     const bgY = softClamp(relativeLuminance(bgHex));
-    const required = getRequired(context.fontSizePx, context.level);
+    const required = context.target === 'ui-component'
+      ? (context.level === 'AAA' ? 45 : 30)  // APCA guidance for non-text — size-independent
+      : getRequired(context.fontSizePx, context.level);
 
     let Sapc: number;
     let polarity: 'dark-on-light' | 'light-on-dark';

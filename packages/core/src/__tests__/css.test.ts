@@ -3,7 +3,10 @@ import { generateCSS, tokenToCssVar } from '../css.js';
 import { buildRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const input: TokenInput = {
   primitives: {
@@ -11,18 +14,18 @@ const input: TokenInput = {
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
       '#a3a3a3', '#737373', '#525252', '#404040',
       '#262626', '#171717',
-    ],
+    ].map(cv),
     orange: [
       '#fff7ed', '#ffedd5', '#fed7aa', '#fdba74',
       '#fb923c', '#f97316', '#ea580c', '#c2410c',
       '#9a3412', '#7c2d12',
-    ],
+    ].map(cv),
   },
   themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgError: {
       ramp: 'neutral',

@@ -1,14 +1,75 @@
-import type { TokenInput } from './types.js';
+import type { TokenInput, ColorSpace } from './types.js';
 
 interface SchemaValidationResult {
   valid: boolean;
   errors: string[];
 }
 
-const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
-function isValidHex(s: string): boolean {
-  return HEX_RE.test(s);
+const VALID_COLOR_SPACES: ColorSpace[] = [
+  'srgb', 'srgb-linear', 'hsl', 'hwb', 'lab', 'lch',
+  'oklab', 'oklch', 'display-p3', 'a98-rgb', 'prophoto-rgb',
+  'rec2020', 'xyz-d65', 'xyz-d50',
+];
+
+function validateW3CAnnotations(obj: Record<string, unknown>, path: string, errors: string[]): void {
+  if (obj['$description'] !== undefined && typeof obj['$description'] !== 'string') {
+    errors.push(`${path}.$description must be a string`);
+  }
+  if (obj['$deprecated'] !== undefined && typeof obj['$deprecated'] !== 'boolean' && typeof obj['$deprecated'] !== 'string') {
+    errors.push(`${path}.$deprecated must be a boolean or string`);
+  }
+  if (obj['$extensions'] !== undefined && (typeof obj['$extensions'] !== 'object' || obj['$extensions'] === null || Array.isArray(obj['$extensions']))) {
+    errors.push(`${path}.$extensions must be an object`);
+  }
+}
+
+function isValidColorValue(val: unknown, path: string, errors: string[]): boolean {
+  // Plain hex string shorthand — accepted as backward-compatible convenience
+  if (typeof val === 'string') {
+    if (!HEX_RE.test(val)) {
+      errors.push(`${path} must be a valid hex color string or ColorValue object (got "${val}")`);
+      return false;
+    }
+    return true;
+  }
+
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+    errors.push(`${path} must be a hex color string or ColorValue object`);
+    return false;
+  }
+  const cv = val as Record<string, unknown>;
+
+  if (typeof cv['colorSpace'] !== 'string' || !VALID_COLOR_SPACES.includes(cv['colorSpace'] as ColorSpace)) {
+    errors.push(`${path}.colorSpace must be one of: ${VALID_COLOR_SPACES.join(', ')}`);
+    return false;
+  }
+
+  if (!Array.isArray(cv['components']) || cv['components'].length !== 3) {
+    errors.push(`${path}.components must be an array of exactly 3 elements`);
+    return false;
+  }
+  for (let j = 0; j < cv['components'].length; j++) {
+    const c = cv['components'][j];
+    if (typeof c !== 'number' && c !== 'none') {
+      errors.push(`${path}.components[${j}] must be a number or "none"`);
+    }
+  }
+
+  if (cv['alpha'] !== undefined) {
+    if (typeof cv['alpha'] !== 'number' || cv['alpha'] < 0 || cv['alpha'] > 1) {
+      errors.push(`${path}.alpha must be a number between 0 and 1`);
+    }
+  }
+
+  if (cv['hex'] !== undefined) {
+    if (typeof cv['hex'] !== 'string' || !HEX_RE.test(cv['hex'])) {
+      errors.push(`${path}.hex must be a valid hex color string`);
+    }
+  }
+
+  return true;
 }
 
 export function validateSchema(input: unknown): SchemaValidationResult {
@@ -20,6 +81,12 @@ export function validateSchema(input: unknown): SchemaValidationResult {
 
   const obj = input as Record<string, unknown>;
 
+  // ── top-level W3C annotations ────────────────────────────────────────────────
+  validateW3CAnnotations(obj, 'root', errors);
+  if (obj['$version'] !== undefined && typeof obj['$version'] !== 'string') {
+    errors.push('$version must be a string');
+  }
+
   // ── primitives ──────────────────────────────────────────────────────────────
   if (!obj['primitives'] || typeof obj['primitives'] !== 'object' || Array.isArray(obj['primitives'])) {
     errors.push('primitives must be an object');
@@ -30,9 +97,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
         errors.push(`primitives.${rampName} must be an array`);
       } else {
         steps.forEach((step, i) => {
-          if (typeof step !== 'string' || !isValidHex(step)) {
-            errors.push(`primitives.${rampName}[${i}] must be a valid hex color (got ${String(step)})`);
-          }
+          isValidColorValue(step, `primitives.${rampName}[${i}]`, errors);
         });
       }
     }
@@ -53,6 +118,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
         continue;
       }
       const bg = bgVal as Record<string, unknown>;
+      validateW3CAnnotations(bg, `themes.${bgName}`, errors);
       if (typeof bg['ramp'] !== 'string') {
         errors.push(`themes.${bgName}.ramp must be a string`);
       } else {
@@ -135,6 +201,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           continue;
         }
         const s = surfaceVal as Record<string, unknown>;
+        validateW3CAnnotations(s, `surfaces.${surfaceName}`, errors);
 
         // Reject theme-only fields
         for (const forbidden of ['fallback', 'tone', 'aliases']) {
@@ -159,43 +226,53 @@ export function validateSchema(input: unknown): SchemaValidationResult {
     }
   }
 
-  // ── semantics ───────────────────────────────────────────────────────────────
-  if (!obj['semantics'] || typeof obj['semantics'] !== 'object' || Array.isArray(obj['semantics'])) {
-    errors.push('semantics must be an object');
-  } else {
-    const semantics = obj['semantics'] as Record<string, unknown>;
-    const primitives = (typeof obj['primitives'] === 'object' && obj['primitives'] !== null && !Array.isArray(obj['primitives']))
-      ? obj['primitives'] as Record<string, unknown>
-      : {};
-    const themes = (typeof obj['themes'] === 'object' && obj['themes'] !== null && !Array.isArray(obj['themes']))
-      ? obj['themes'] as Record<string, unknown>
-      : {};
+  // ── detect old semantics key ─────────────────────────────────────────────────
+  if (obj['semantics'] !== undefined) {
+    errors.push('"semantics" is not valid — use "foreground" for text tokens and "nonText" for borders/focus/rings');
+  }
 
-    for (const [tokenName, semVal] of Object.entries(semantics)) {
+  // ── shared semantic section validator ────────────────────────────────────────
+  function validateSemanticsSection(
+    sectionName: string,
+    sectionObj: Record<string, unknown>,
+    primitives: Record<string, unknown>,
+    themes: Record<string, unknown>,
+  ): void {
+    for (const [tokenName, semVal] of Object.entries(sectionObj)) {
       if (typeof semVal !== 'object' || semVal === null || Array.isArray(semVal)) {
-        errors.push(`semantics.${tokenName} must be an object`);
+        errors.push(`${sectionName}.${tokenName} must be an object`);
         continue;
       }
       const sem = semVal as Record<string, unknown>;
+      validateW3CAnnotations(sem, `${sectionName}.${tokenName}`, errors);
+      if (sem['$type'] !== undefined && typeof sem['$type'] !== 'string') {
+        errors.push(`${sectionName}.${tokenName}.$type must be a string`);
+      }
+      if (sem['decorative'] !== undefined && typeof sem['decorative'] !== 'boolean') {
+        errors.push(`${sectionName}.${tokenName}.decorative must be a boolean`);
+      }
 
       if (typeof sem['ramp'] !== 'string') {
-        errors.push(`semantics.${tokenName}.ramp must be a string`);
+        errors.push(`${sectionName}.${tokenName}.ramp must be a string`);
       } else {
         const rampSteps = primitives[sem['ramp']];
         if (!rampSteps) {
-          errors.push(`semantics.${tokenName}.ramp references unknown ramp "${sem['ramp']}"`);
+          errors.push(`${sectionName}.${tokenName}.ramp references unknown ramp "${sem['ramp']}"`);
         } else if (Array.isArray(rampSteps)) {
-          if (typeof sem['defaultStep'] !== 'number' || !Number.isInteger(sem['defaultStep']) || sem['defaultStep'] < 0 || sem['defaultStep'] >= rampSteps.length) {
-            errors.push(`semantics.${tokenName}.defaultStep ${String(sem['defaultStep'])} is out of bounds for ramp "${sem['ramp']}" (length ${rampSteps.length})`);
+          // defaultStep is optional — only validate bounds if provided
+          if (sem['defaultStep'] !== undefined) {
+            if (typeof sem['defaultStep'] !== 'number' || !Number.isInteger(sem['defaultStep']) || sem['defaultStep'] < 0 || sem['defaultStep'] >= rampSteps.length) {
+              errors.push(`${sectionName}.${tokenName}.defaultStep ${String(sem['defaultStep'])} is out of bounds for ramp "${sem['ramp']}" (length ${rampSteps.length})`);
+            }
           }
 
           // overrides
           if (sem['overrides'] !== undefined) {
             if (!Array.isArray(sem['overrides'])) {
-              errors.push(`semantics.${tokenName}.overrides must be an array`);
+              errors.push(`${sectionName}.${tokenName}.overrides must be an array`);
             } else {
               sem['overrides'].forEach((ov: unknown, i: number) => {
-                validateOverride(ov, `semantics.${tokenName}.overrides[${i}]`, rampSteps.length, themes, errors);
+                validateOverride(ov, `${sectionName}.${tokenName}.overrides[${i}]`, rampSteps.length, themes, errors);
               });
             }
           }
@@ -203,12 +280,12 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           // tone
           if (sem['tone'] !== undefined) {
             if (typeof sem['tone'] !== 'object' || sem['tone'] === null || Array.isArray(sem['tone'])) {
-              errors.push(`semantics.${tokenName}.tone must be an object`);
+              errors.push(`${sectionName}.${tokenName}.tone must be an object`);
             } else {
               const tone = sem['tone'] as Record<string, unknown>;
               for (const [toneMode, toneVal] of Object.entries(tone)) {
                 if (typeof toneVal !== 'object' || toneVal === null || Array.isArray(toneVal)) {
-                  errors.push(`semantics.${tokenName}.tone.${toneMode} must be an object`);
+                  errors.push(`${sectionName}.${tokenName}.tone.${toneMode} must be an object`);
                   continue;
                 }
                 const t = toneVal as Record<string, unknown>;
@@ -216,11 +293,11 @@ export function validateSchema(input: unknown): SchemaValidationResult {
                 let toneRampSteps: unknown[] = rampSteps;
                 if (t['ramp'] !== undefined) {
                   if (typeof t['ramp'] !== 'string') {
-                    errors.push(`semantics.${tokenName}.tone.${toneMode}.ramp must be a string`);
+                    errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.ramp must be a string`);
                   } else {
                     const toneRamp = primitives[t['ramp']];
                     if (!toneRamp) {
-                      errors.push(`semantics.${tokenName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
+                      errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
                     } else if (Array.isArray(toneRamp)) {
                       toneRampSteps = toneRamp;
                     }
@@ -229,18 +306,18 @@ export function validateSchema(input: unknown): SchemaValidationResult {
 
                 if (t['defaultStep'] !== undefined) {
                   if (typeof t['defaultStep'] !== 'number' || !Number.isInteger(t['defaultStep']) || t['defaultStep'] < 0 || t['defaultStep'] >= toneRampSteps.length) {
-                    errors.push(`semantics.${tokenName}.tone.${toneMode}.defaultStep ${String(t['defaultStep'])} is out of bounds`);
+                    errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.defaultStep ${String(t['defaultStep'])} is out of bounds`);
                   }
                 }
 
                 if (t['overrides'] !== undefined) {
                   if (!Array.isArray(t['overrides'])) {
-                    errors.push(`semantics.${tokenName}.tone.${toneMode}.overrides must be an array`);
+                    errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.overrides must be an array`);
                   } else {
                     t['overrides'].forEach((ov: unknown, i: number) => {
                       validateOverride(
                         ov,
-                        `semantics.${tokenName}.tone.${toneMode}.overrides[${i}]`,
+                        `${sectionName}.${tokenName}.tone.${toneMode}.overrides[${i}]`,
                         toneRampSteps.length,
                         themes,
                         errors,
@@ -255,21 +332,21 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           // interactions
           if (sem['interactions'] !== undefined) {
             if (typeof sem['interactions'] !== 'object' || sem['interactions'] === null || Array.isArray(sem['interactions'])) {
-              errors.push(`semantics.${tokenName}.interactions must be an object`);
+              errors.push(`${sectionName}.${tokenName}.interactions must be an object`);
             } else {
               const interactions = sem['interactions'] as Record<string, unknown>;
               for (const [stateName, stateVal] of Object.entries(interactions)) {
                 if (typeof stateVal !== 'object' || stateVal === null || Array.isArray(stateVal)) {
-                  errors.push(`semantics.${tokenName}.interactions.${stateName} must be an object`);
+                  errors.push(`${sectionName}.${tokenName}.interactions.${stateName} must be an object`);
                   continue;
                 }
                 const state = stateVal as Record<string, unknown>;
                 if (typeof state['step'] !== 'number' || !Number.isInteger(state['step']) || state['step'] < 0 || state['step'] >= rampSteps.length) {
-                  errors.push(`semantics.${tokenName}.interactions.${stateName}.step ${String(state['step'])} is out of bounds`);
+                  errors.push(`${sectionName}.${tokenName}.interactions.${stateName}.step ${String(state['step'])} is out of bounds`);
                 }
                 if (state['overrides'] !== undefined && Array.isArray(state['overrides'])) {
                   state['overrides'].forEach((ov: unknown, i: number) => {
-                    validateOverride(ov, `semantics.${tokenName}.interactions.${stateName}.overrides[${i}]`, rampSteps.length, themes, errors);
+                    validateOverride(ov, `${sectionName}.${tokenName}.interactions.${stateName}.overrides[${i}]`, rampSteps.length, themes, errors);
                   });
                 }
               }
@@ -279,23 +356,23 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           // vision
           if (sem['vision'] !== undefined) {
             if (typeof sem['vision'] !== 'object' || sem['vision'] === null || Array.isArray(sem['vision'])) {
-              errors.push(`semantics.${tokenName}.vision must be an object`);
+              errors.push(`${sectionName}.${tokenName}.vision must be an object`);
             } else {
               const vision = sem['vision'] as Record<string, unknown>;
               for (const [visionMode, visionVal] of Object.entries(vision)) {
                 if (typeof visionVal !== 'object' || visionVal === null || Array.isArray(visionVal)) {
-                  errors.push(`semantics.${tokenName}.vision.${visionMode} must be an object`);
+                  errors.push(`${sectionName}.${tokenName}.vision.${visionMode} must be an object`);
                   continue;
                 }
                 const v = visionVal as Record<string, unknown>;
                 let visionRampSteps: unknown[] = rampSteps;
                 if (v['ramp'] !== undefined) {
                   if (typeof v['ramp'] !== 'string') {
-                    errors.push(`semantics.${tokenName}.vision.${visionMode}.ramp must be a string`);
+                    errors.push(`${sectionName}.${tokenName}.vision.${visionMode}.ramp must be a string`);
                   } else {
                     const vRamp = primitives[v['ramp']];
                     if (!vRamp) {
-                      errors.push(`semantics.${tokenName}.vision.${visionMode}.ramp references unknown ramp "${v['ramp']}"`);
+                      errors.push(`${sectionName}.${tokenName}.vision.${visionMode}.ramp references unknown ramp "${v['ramp']}"`);
                     } else if (Array.isArray(vRamp)) {
                       visionRampSteps = vRamp;
                     }
@@ -303,7 +380,7 @@ export function validateSchema(input: unknown): SchemaValidationResult {
                 }
                 if (v['defaultStep'] !== undefined) {
                   if (typeof v['defaultStep'] !== 'number' || !Number.isInteger(v['defaultStep']) || v['defaultStep'] < 0 || v['defaultStep'] >= visionRampSteps.length) {
-                    errors.push(`semantics.${tokenName}.vision.${visionMode}.defaultStep ${String(v['defaultStep'])} is out of bounds`);
+                    errors.push(`${sectionName}.${tokenName}.vision.${visionMode}.defaultStep ${String(v['defaultStep'])} is out of bounds`);
                   }
                 }
               }
@@ -311,6 +388,34 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           }
         }
       }
+    }
+  }
+
+  // ── foreground (required) ────────────────────────────────────────────────────
+  if (!obj['foreground'] || typeof obj['foreground'] !== 'object' || Array.isArray(obj['foreground'])) {
+    errors.push('foreground must be an object');
+  } else {
+    const primitives = (typeof obj['primitives'] === 'object' && obj['primitives'] !== null && !Array.isArray(obj['primitives']))
+      ? obj['primitives'] as Record<string, unknown>
+      : {};
+    const themes = (typeof obj['themes'] === 'object' && obj['themes'] !== null && !Array.isArray(obj['themes']))
+      ? obj['themes'] as Record<string, unknown>
+      : {};
+    validateSemanticsSection('foreground', obj['foreground'] as Record<string, unknown>, primitives, themes);
+  }
+
+  // ── nonText (optional) ───────────────────────────────────────────────────────
+  if (obj['nonText'] !== undefined) {
+    if (typeof obj['nonText'] !== 'object' || Array.isArray(obj['nonText'])) {
+      errors.push('nonText must be an object');
+    } else {
+      const primitives = (typeof obj['primitives'] === 'object' && obj['primitives'] !== null && !Array.isArray(obj['primitives']))
+        ? obj['primitives'] as Record<string, unknown>
+        : {};
+      const themes = (typeof obj['themes'] === 'object' && obj['themes'] !== null && !Array.isArray(obj['themes']))
+        ? obj['themes'] as Record<string, unknown>
+        : {};
+      validateSemanticsSection('nonText', obj['nonText'] as Record<string, unknown>, primitives, themes);
     }
   }
 

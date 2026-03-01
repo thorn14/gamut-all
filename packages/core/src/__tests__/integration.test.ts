@@ -6,7 +6,7 @@ import type { TokenInput, DesignContext } from '../types.js';
 // Load fixture
 import tokensJson from './fixtures/tokens.json' with { type: 'json' };
 
-const input = tokensJson as TokenInput;
+const input = tokensJson as unknown as TokenInput;
 const processed = processInput(input);
 const registry = buildRegistry(processed, wcag21);
 

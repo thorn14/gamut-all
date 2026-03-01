@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamut-all.dev/schema/primitives.json",
+  "title": "Primitives",
+  "description": "Color ramp palette for @gamut-all/core. Each key is a ramp name; each value is an ordered array of color values (light → dark or dark → light). Items may be plain hex strings or W3C Design Tokens ColorValue objects.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" }
+  },
+  "additionalProperties": {
+    "type": "array",
+    "items": {
+      "oneOf": [
+        { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "description": "Hex color shorthand" },
+        { "$ref": "schema.json#/$defs/ColorValue" }
+      ]
+    }
+  }
+}

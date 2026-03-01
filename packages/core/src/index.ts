@@ -4,9 +4,14 @@ export { resolveToken, resolveAllTokens } from './resolver.js';
 export { generateCSS } from './css.js';
 export { serializeRegistry, deserializeRegistry } from './serialize.js';
 export { applyToneMode } from './tone.js';
+export { colorValueToHex, hexToColorValue } from './utils/oklch.js';
 export { wcag21 } from './compliance/wcag21.js';
 export { apca, softClamp } from './compliance/apca.js';
 export type {
+  W3CAnnotations,
+  ColorValue,
+  ColorSpace,
+  ColorComponent,
   TokenInput,
   SemanticInput,
   ThemeInput,

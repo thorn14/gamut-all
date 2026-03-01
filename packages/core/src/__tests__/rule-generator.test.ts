@@ -2,14 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { findClosestPassingStep, autoGenerateRules, expandOverride, patchWithOverrides } from '../rule-generator.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput, ProcessedRamp } from '../types.js';
 import { ALL_FONT_SIZES, ALL_STACKS } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const neutralHexes = [
   '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
   '#a3a3a3', '#737373', '#525252', '#404040',
   '#262626', '#171717',
-];
+].map(cv);
 
 const baseInput: TokenInput = {
   primitives: { neutral: neutralHexes },
@@ -18,7 +21,7 @@ const baseInput: TokenInput = {
     dark: { ramp: 'neutral', step: 8 },
     inverse: { ramp: 'neutral', step: 9 },
   },
-  semantics: {
+  foreground: {
     fgSecondary: { ramp: 'neutral', defaultStep: 5 },
   },
 };
@@ -177,6 +180,65 @@ describe('autoGenerateRules', () => {
     for (const rule of rules) {
       expect(rule.step).toBeGreaterThan(5);
     }
+  });
+});
+
+describe('autoGenerateRules — decorative', () => {
+  const processed = getProcessed();
+  const neutral = processed.ramps.get('neutral')!;
+  const themes = processed.themes;
+
+  it('returns no rules for decorative with closest strategy', () => {
+    const rules = autoGenerateRules(
+      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'closest', 'decorative',
+    );
+    expect(rules).toHaveLength(0);
+  });
+
+  it('returns no rules for decorative with mirror-closest on a symmetric step', () => {
+    // Step 4 on a 10-step ramp: mirror = 9-4 = 5 — not same, should produce rules
+    // Step 4 on a 9-step ramp (length 9): mirror = 8-4 = 4 — same step, no rules
+    // Use step that mirrors to itself: with 10 steps, no step mirrors to itself (9-step odd)
+    // Use a 2-step ramp where step 0 mirrors to step 1 and vice-versa
+    // Actually: with 10 steps, step 4 mirrors to 5 (different) — will always produce rules for dark bgs
+    // So test a theme set that's only light bgs:
+    const lightOnlyInput: TokenInput = {
+      ...baseInput,
+      themes: { white: { ramp: 'neutral', step: 0 } },
+    };
+    const lightProcessed = processInput(lightOnlyInput);
+    const rules = autoGenerateRules(
+      neutral, 3, lightProcessed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+    );
+    // white is a light bg (elevationDirection darker) — no mirror needed
+    expect(rules).toHaveLength(0);
+  });
+
+  it('mirrors step on dark bg with mirror-closest strategy', () => {
+    // dark theme has elevationDirection 'lighter' — should mirror
+    // step 3 on 10-step ramp mirrors to step 6
+    const rules = autoGenerateRules(
+      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+    );
+    const darkRules = rules.filter(r => r.bg === 'dark');
+    expect(darkRules.length).toBeGreaterThan(0);
+    expect(darkRules.every(r => r.step === 6)).toBe(true);
+  });
+
+  it('does not mirror step on light bg with mirror-closest strategy', () => {
+    const rules = autoGenerateRules(
+      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+    );
+    const whiteRules = rules.filter(r => r.bg === 'white');
+    expect(whiteRules).toHaveLength(0);
+  });
+
+  it('wcag-exempt metric returned when target is decorative', () => {
+    const result = wcag21.evaluate('#d4d4d4', '#fafafa', {
+      fontSizePx: 16, fontWeight: 400, target: 'decorative', level: 'AA',
+    });
+    expect(result.pass).toBe(true);
+    expect(result.metric).toBe('wcag-exempt');
   });
 });
 

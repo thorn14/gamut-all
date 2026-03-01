@@ -38,6 +38,7 @@ function buildVariantsForToken(
   visionMode: VisionMode,
   variantMap: Map<VariantKey, ResolvedVariant>,
   stackNames: StackClass[],
+  complianceTarget: 'text' | 'ui-component' | 'decorative' = 'text',
 ): void {
   const allBgs = Array.from(themes.keys());
 
@@ -50,6 +51,7 @@ function buildVariantsForToken(
     ALL_FONT_SIZES,
     stackNames,
     stepSelectionStrategy,
+    complianceTarget,
   );
   const patchedMap = patchWithOverrides(autoRules, overrides, allBgs, ALL_FONT_SIZES, stackNames);
 
@@ -67,7 +69,7 @@ function buildVariantsForToken(
         const context = {
           fontSizePx: parseInt(fontSize, 10),
           fontWeight: 400,
-          target: 'text' as const,
+          target: complianceTarget,
           level: wcagTarget,
         };
         // Compliance checked against the stack's surface hex, not bg.hex
@@ -119,30 +121,96 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
       'default',
       variantMap,
       stackNames,
+      semantic.complianceTarget,
     );
 
-    // Build interaction variants
+    // Build interaction variants — direction-aware delta relative to resolved base step.
+    // Interaction steps are declared as absolute indices, but their visual intent is
+    // relative (hover = +1 from base, active = +2, etc.). When the base gets
+    // compliance-corrected to a different step, we apply the same signed delta in the
+    // bg's elevation direction so hover/active always differ visibly from the base.
     for (const [stateName, interaction] of Object.entries(semantic.interactions)) {
       const interactionTokenName = `${tokenName}-${stateName}`;
-      const interactionDefaultStep = interaction.step;
-      const interactionStepData = semantic.ramp.steps[interactionDefaultStep];
-      if (interactionStepData) {
-        defaults[interactionTokenName] = interactionStepData.hex;
+      const interactionDelta = interaction.step - semantic.defaultStep;
+
+      // Default fallback hex: use the absolute declared step (for resolveToken fallback chain).
+      const interactionAbsStepData = semantic.ramp.steps[interaction.step];
+      if (interactionAbsStepData) {
+        defaults[interactionTokenName] = interactionAbsStepData.hex;
       }
 
-      buildVariantsForToken(
-        interactionTokenName,
-        semantic.ramp,
-        interaction.step,
-        interaction.overrides,
-        processed.themes,
-        compliance,
-        wcagTarget,
-        stepSelectionStrategy,
-        'default',
-        variantMap,
-        stackNames,
-      );
+      const allBgs = Array.from(processed.themes.keys());
+
+      for (const [bgName, bg] of processed.themes) {
+        // On dark bgs elevation goes lighter (lower index) → negate delta so hover is
+        // still "further from default" in the readable direction.
+        const directionFactor = bg.elevationDirection === 'lighter' ? -1 : 1;
+
+        for (const stack of stackNames) {
+          const surface = bg.surfaces.get(stack);
+          if (!surface) continue;
+
+          for (const fontSize of ALL_FONT_SIZES) {
+            // Look up the already-resolved base step for this exact context.
+            const baseKey = makeKey(tokenName, fontSize, bgName, stack, 'default');
+            const baseVariant = variantMap.get(baseKey);
+            const resolvedBaseStep = baseVariant?.step ?? semantic.defaultStep;
+
+            // Apply direction-aware delta, clamped to ramp bounds.
+            const rawStep = resolvedBaseStep + interactionDelta * directionFactor;
+            const clampedStep = Math.max(0, Math.min(rawStep, semantic.ramp.steps.length - 1));
+            const stepData = semantic.ramp.steps[clampedStep];
+            if (!stepData) continue;
+
+            const context = {
+              fontSizePx: parseInt(fontSize, 10),
+              fontWeight: 400,
+              target: semantic.complianceTarget,
+              level: wcagTarget,
+            };
+            const complianceResult = compliance.evaluate(stepData.hex, surface.hex, context);
+            const varKey = makeKey(interactionTokenName, fontSize, bgName, stack, 'default');
+            variantMap.set(varKey, {
+              ramp: semantic.ramp.name,
+              step: clampedStep,
+              hex: stepData.hex,
+              compliance: complianceResult,
+            });
+          }
+        }
+      }
+
+      // Apply any manual overrides declared on this interaction state.
+      if (interaction.overrides.length > 0) {
+        const overrideMap = patchWithOverrides([], interaction.overrides, allBgs, ALL_FONT_SIZES, stackNames);
+        for (const [bgName, bg] of processed.themes) {
+          for (const stack of stackNames) {
+            const surface = bg.surfaces.get(stack);
+            if (!surface) continue;
+            for (const fontSize of ALL_FONT_SIZES) {
+              const mapKey = `${bgName}__${fontSize}__${stack}`;
+              if (!overrideMap.has(mapKey)) continue;
+              const overrideStep = overrideMap.get(mapKey)!;
+              const stepData = semantic.ramp.steps[overrideStep];
+              if (!stepData) continue;
+              const context = {
+                fontSizePx: parseInt(fontSize, 10),
+                fontWeight: 400,
+                target: semantic.complianceTarget,
+                level: wcagTarget,
+              };
+              const complianceResult = compliance.evaluate(stepData.hex, surface.hex, context);
+              const varKey = makeKey(interactionTokenName, fontSize, bgName, stack, 'default');
+              variantMap.set(varKey, {
+                ramp: semantic.ramp.name,
+                step: overrideStep,
+                hex: stepData.hex,
+                compliance: complianceResult,
+              });
+            }
+          }
+        }
+      }
     }
 
     // Build vision mode variants
@@ -162,6 +230,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
         visionMode,
         variantMap,
         stackNames,
+        semantic.complianceTarget,
       );
     }
   }
