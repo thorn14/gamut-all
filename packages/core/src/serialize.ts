@@ -60,6 +60,7 @@ export interface SerializedRegistry {
   themes: [string, SerializedTheme][];
   themeFallbacks: Record<string, string[]>;
   surfaces: [string, SerializedSurface][];
+  stacks: [string, number][];
   variantMap: [string, SerializedVariant][];
   defaults: Record<string, string>;
 }
@@ -124,6 +125,7 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
     themes,
     themeFallbacks: registry.themeFallbacks,
     surfaces,
+    stacks: Array.from(registry.stacks.entries()),
     variantMap,
     defaults: registry.defaults,
   };
@@ -160,6 +162,7 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
     themes,
     themeFallbacks: serialized.themeFallbacks,
     surfaces,
+    stacks: new Map(serialized.stacks),
     variantMap,
     defaults: serialized.defaults,
     meta: serialized.meta,

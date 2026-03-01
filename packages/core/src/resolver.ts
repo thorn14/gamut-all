@@ -1,13 +1,14 @@
-import type { TokenRegistry, DesignContext, StackClass } from './types.js';
+import type { TokenRegistry, DesignContext } from './types.js';
 
-const STACK_FALLBACK: Record<StackClass, StackClass[]> = {
-  overlay: ['modal', 'tooltip', 'popover', 'card', 'root'],
-  modal: ['tooltip', 'popover', 'card', 'root'],
-  tooltip: ['popover', 'card', 'root'],
-  popover: ['card', 'root'],
-  card: ['root'],
-  root: [],
-};
+// Build stack fallback chain from registry offsets.
+// For a given stack at offset N, returns all stacks with offset < N, ordered descending.
+function buildStackFallback(stacks: Map<string, number>, stackDepth: string): string[] {
+  const currentOffset = stacks.get(stackDepth) ?? 0;
+  return Array.from(stacks.entries())
+    .filter(([, offset]) => offset < currentOffset)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
+}
 
 export function resolveToken(
   token: string,
@@ -29,7 +30,7 @@ export function resolveToken(
   }
 
   // 3. Relax stack toward 'root' — try current visionMode first, then 'default'
-  for (const stack of STACK_FALLBACK[stackDepth] ?? []) {
+  for (const stack of buildStackFallback(registry.stacks, stackDepth)) {
     const sKey = `${token}__${fontSize}__${bgClass}__${stack}__${visionMode}`;
     const sFallback = registry.variantMap.get(sKey as Parameters<typeof registry.variantMap.get>[0]);
     if (sFallback) return sFallback.hex;

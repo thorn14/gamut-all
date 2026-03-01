@@ -11,16 +11,6 @@ import type {
   ContextOverrideInput,
   StackClass,
 } from './types.js';
-import { DEFAULT_STACK_NAMES } from './types.js';
-
-const DEFAULT_STACK_OFFSETS: Record<string, number> = {
-  root: 0,
-  card: 1,
-  popover: 2,
-  tooltip: 2,
-  modal: 2,
-  overlay: 3,
-};
 
 export function processInput(input: TokenInput): ProcessedInput {
   // 1. Validate schema — throw on errors
@@ -77,16 +67,15 @@ export function processInput(input: TokenInput): ProcessedInput {
   const themeKeys = Object.keys(input.themes);
   const firstTheme = themeKeys[0] ?? '';
 
-  if (inputConfig.stacks?.root !== undefined && inputConfig.stacks.root !== 0) {
-    throw new Error('Stack "root" must have offset 0');
-  }
-
   const inputStacks = inputConfig.stacks ?? {};
-  // If user provides stacks, use exactly those keys (plus ensure root=0).
-  // Otherwise fall back to the default set.
-  const resolvedStackEntries: [string, number][] = Object.keys(inputStacks).length > 0
-    ? Object.entries(inputStacks).map(([k, v]): [string, number] => [k, v ?? DEFAULT_STACK_OFFSETS[k] ?? 0])
-    : DEFAULT_STACK_NAMES.map((s): [string, number] => [s, DEFAULT_STACK_OFFSETS[s] ?? 0]);
+  // 'root' at offset 0 is always implicit — users never need to declare it.
+  // Stack definitions are a design decision — the library does not presume any named levels.
+  const resolvedStackEntries: [string, number][] = [
+    ['root', 0],
+    ...Object.entries(inputStacks)
+      .filter(([k]) => k !== 'root')
+      .map(([k, v]): [string, number] => [k, v ?? 0]),
+  ];
 
   const stacks = new Map<StackClass, number>(resolvedStackEntries);
 

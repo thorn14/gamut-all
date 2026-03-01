@@ -8,6 +8,9 @@ import type { TokenInput } from '../types.js';
 const cv = (hex: string) => hexToColorValue(hex);
 
 const baseInput: TokenInput = {
+  config: {
+    stacks: { root: 0, card: 1, popover: 2, tooltip: 2, modal: 2, overlay: 3 },
+  },
   primitives: {
     neutral: [
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',

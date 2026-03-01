@@ -253,6 +253,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
     themes: processed.themes,
     themeFallbacks,
     surfaces: processed.surfaces,
+    stacks: processed.stacks,
     variantMap,
     defaults,
     meta,

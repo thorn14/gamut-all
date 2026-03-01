@@ -16,6 +16,9 @@ const neutralHexes = [
 
 const baseInput: TokenInput = {
   primitives: { neutral: neutralHexes },
+  config: {
+    stacks: { root: 0, card: 1, modal: 2 },
+  },
   themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },

@@ -6,10 +6,10 @@ export type VisionMode = 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia
 export type StepSelectionStrategy = 'closest' | 'mirror-closest';
 
 export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', '24px', '32px'];
-// Default stack names — used as fallback when config.stacks is not provided.
-// Users may define any stack names they choose.
+// Opt-in preset — a conventional set of stack names for apps that want
+// multi-level elevation. Pass as config.stacks with your own offsets.
+// The library does NOT apply these automatically; only 'root' is assumed.
 export const DEFAULT_STACK_NAMES: StackClass[] = ['root', 'card', 'popover', 'tooltip', 'modal', 'overlay'];
-// Backward-compatible alias used across registry/rule-generation paths.
 export const ALL_STACKS: StackClass[] = DEFAULT_STACK_NAMES;
 export const ALL_VISION_MODES: VisionMode[] = ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia'];
 
@@ -201,6 +201,7 @@ export interface TokenRegistry {
   themes: Map<string, ProcessedTheme>;
   themeFallbacks: Record<string, string[]>;
   surfaces: Map<string, ProcessedSurface>;
+  stacks: Map<StackClass, number>;
   variantMap: Map<VariantKey, ResolvedVariant>;
   defaults: Record<string, string>;
   meta: {

@@ -1,5 +1,4 @@
 export { TokenProvider } from './TokenProvider.js';
-export { StackLayer } from './components/StackLayer.js';
 export { TokenizedText } from './components/TokenizedText.js';
 export { TokenizedContainer } from './components/TokenizedContainer.js';
 export { TokenResolver } from './components/TokenResolver.js';
