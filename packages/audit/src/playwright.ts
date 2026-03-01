@@ -23,6 +23,7 @@ export interface PlaywrightAuditOptions {
 
 interface ExtractedElement {
   tag: string;
+  dataTheme: string | null;
   dataBg: string | null;
   dataStack: string | null;
   dataVision: string | null;
@@ -80,6 +81,7 @@ export async function auditURL(
     const elements: ExtractedElement[] = await page.evaluate(() => {
       return Array.from(document.querySelectorAll('*')).map(el => ({
         tag: el.tagName.toLowerCase(),
+        dataTheme: el.getAttribute('data-theme'),
         dataBg: el.getAttribute('data-bg'),
         dataStack: el.getAttribute('data-stack'),
         dataVision: el.getAttribute('data-vision'),
@@ -101,6 +103,7 @@ function buildSyntheticDOM(elements: ExtractedElement[]): Element {
   const root = document.createElement('div');
   for (const el of elements) {
     const node = document.createElement(el.tag);
+    if (el.dataTheme !== null) node.setAttribute('data-theme', el.dataTheme);
     if (el.dataBg !== null) node.setAttribute('data-bg', el.dataBg);
     if (el.dataStack !== null) node.setAttribute('data-stack', el.dataStack);
     if (el.dataVision !== null) node.setAttribute('data-vision', el.dataVision);

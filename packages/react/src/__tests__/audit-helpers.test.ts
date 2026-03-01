@@ -1,35 +1,35 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { warnMissingDataBg, checkDataBgCoverage } from '../audit-helpers.js';
+import { warnMissingDataTheme, checkDataThemeCoverage } from '../audit-helpers.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ── warnMissingDataBg ─────────────────────────────────────────────────────────
+// ── warnMissingDataTheme ──────────────────────────────────────────────────────
 
-describe('warnMissingDataBg', () => {
-  it('does not warn when element has data-bg', () => {
+describe('warnMissingDataTheme', () => {
+  it('does not warn when element has data-theme', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
-    warnMissingDataBg(el);
+    el.setAttribute('data-theme', 'white');
+    warnMissingDataTheme(el);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('does not warn when an ancestor has data-bg', () => {
+  it('does not warn when an ancestor has data-theme', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'dark');
+    parent.setAttribute('data-theme', 'dark');
     const child = document.createElement('span');
     parent.appendChild(child);
-    warnMissingDataBg(child);
+    warnMissingDataTheme(child);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('warns when no data-bg in ancestor chain', () => {
+  it('warns when no data-theme in ancestor chain', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = document.createElement('div');
-    warnMissingDataBg(el);
+    warnMissingDataTheme(el);
     expect(warnSpy).toHaveBeenCalledOnce();
     expect(warnSpy.mock.calls[0]![0]).toContain('[gamut-all]');
   });
@@ -37,63 +37,63 @@ describe('warnMissingDataBg', () => {
   it('warns with element as second arg', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = document.createElement('div');
-    warnMissingDataBg(el);
+    warnMissingDataTheme(el);
     expect(warnSpy.mock.calls[0]![1]).toBe(el);
   });
 
-  it('does not warn for deeply nested child under data-bg root', () => {
+  it('does not warn for deeply nested child under data-theme root', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const root = document.createElement('div');
-    root.setAttribute('data-bg', 'white');
+    root.setAttribute('data-theme', 'white');
     const a = document.createElement('div');
     const b = document.createElement('div');
     const c = document.createElement('span');
     root.appendChild(a);
     a.appendChild(b);
     b.appendChild(c);
-    warnMissingDataBg(c);
+    warnMissingDataTheme(c);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 
-// ── checkDataBgCoverage ───────────────────────────────────────────────────────
+// ── checkDataThemeCoverage ────────────────────────────────────────────────────
 
-describe('checkDataBgCoverage', () => {
+describe('checkDataThemeCoverage', () => {
   it('returns empty arrays for empty root', () => {
     const root = document.createElement('div');
-    const result = checkDataBgCoverage(root);
+    const result = checkDataThemeCoverage(root);
     expect(result.missing).toHaveLength(0);
     expect(result.present).toHaveLength(0);
   });
 
-  it('classifies element with data-bg as present', () => {
+  it('classifies element with data-theme as present', () => {
     const root = document.createElement('div');
     const child = document.createElement('div');
-    child.setAttribute('data-bg', 'white');
+    child.setAttribute('data-theme', 'white');
     root.appendChild(child);
-    const result = checkDataBgCoverage(root);
+    const result = checkDataThemeCoverage(root);
     expect(result.present).toContain(child);
     expect(result.missing).toHaveLength(0);
   });
 
-  it('classifies element with no data-bg and no ancestor as missing', () => {
+  it('classifies element with no data-theme and no ancestor as missing', () => {
     const root = document.createElement('div');
     const child = document.createElement('div');
     root.appendChild(child);
-    const result = checkDataBgCoverage(root);
+    const result = checkDataThemeCoverage(root);
     expect(result.missing).toContain(child);
     expect(result.present).toHaveLength(0);
   });
 
-  it('element with ancestor data-bg is NOT missing', () => {
+  it('element with ancestor data-theme is NOT missing', () => {
     const root = document.createElement('div');
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'dark');
+    parent.setAttribute('data-theme', 'dark');
     const child = document.createElement('span');
     root.appendChild(parent);
     parent.appendChild(child);
-    const result = checkDataBgCoverage(root);
-    // parent is present, child has an ancestor with data-bg → not missing
+    const result = checkDataThemeCoverage(root);
+    // parent is present, child has an ancestor with data-theme → not missing
     expect(result.present).toContain(parent);
     expect(result.missing).not.toContain(child);
   });
@@ -102,7 +102,7 @@ describe('checkDataBgCoverage', () => {
     const root = document.createElement('div');
 
     const coveredParent = document.createElement('div');
-    coveredParent.setAttribute('data-bg', 'white');
+    coveredParent.setAttribute('data-theme', 'white');
     const coveredChild = document.createElement('span');
     coveredParent.appendChild(coveredChild);
 
@@ -111,7 +111,7 @@ describe('checkDataBgCoverage', () => {
     root.appendChild(coveredParent);
     root.appendChild(uncoveredEl);
 
-    const result = checkDataBgCoverage(root);
+    const result = checkDataThemeCoverage(root);
     expect(result.present).toContain(coveredParent);
     expect(result.missing).toContain(uncoveredEl);
     expect(result.missing).not.toContain(coveredChild);
@@ -119,8 +119,8 @@ describe('checkDataBgCoverage', () => {
 
   it('root element itself is not checked (only querySelectorAll descendants)', () => {
     const root = document.createElement('div');
-    // Root itself has no data-bg but that is not checked
-    const result = checkDataBgCoverage(root);
+    // Root itself has no data-theme but that is not checked
+    const result = checkDataThemeCoverage(root);
     // Root has no children → both empty
     expect(result.missing).toHaveLength(0);
     expect(result.present).toHaveLength(0);

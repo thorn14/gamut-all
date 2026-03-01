@@ -1,4 +1,4 @@
-import type { TokenInput, SemanticInput, BackgroundInput } from './types.js';
+import type { TokenInput, SemanticInput, ThemeInput } from './types.js';
 
 function cloneInput(input: TokenInput): TokenInput {
   return JSON.parse(JSON.stringify(input)) as TokenInput;
@@ -20,9 +20,9 @@ function mergeSemanticToneOverride(
 }
 
 function mergeBackgroundToneOverride(
-  background: BackgroundInput,
-  toneOverride: NonNullable<BackgroundInput['tone']>[string],
-): BackgroundInput {
+  background: ThemeInput,
+  toneOverride: NonNullable<ThemeInput['tone']>[string],
+): ThemeInput {
   return {
     ...background,
     ramp: toneOverride.ramp ?? background.ramp,
@@ -40,16 +40,24 @@ export function applyToneMode(input: TokenInput, toneMode: string): TokenInput {
   const next = cloneInput(input);
   if (!toneMode || toneMode === 'default') return next;
 
-  for (const [bgName, background] of Object.entries(next.backgrounds)) {
+  for (const [bgName, background] of Object.entries(next.themes)) {
     const toneOverride = background.tone?.[toneMode];
     if (!toneOverride) continue;
-    next.backgrounds[bgName] = mergeBackgroundToneOverride(background, toneOverride);
+    next.themes[bgName] = mergeBackgroundToneOverride(background, toneOverride);
   }
 
-  for (const [tokenName, semantic] of Object.entries(next.semantics)) {
+  for (const [tokenName, semantic] of Object.entries(next.foreground)) {
     const toneOverride = semantic.tone?.[toneMode];
     if (!toneOverride) continue;
-    next.semantics[tokenName] = mergeSemanticToneOverride(semantic, toneOverride);
+    next.foreground[tokenName] = mergeSemanticToneOverride(semantic, toneOverride);
+  }
+
+  if (next.nonText) {
+    for (const [tokenName, semantic] of Object.entries(next.nonText)) {
+      const toneOverride = semantic.tone?.[toneMode];
+      if (!toneOverride) continue;
+      next.nonText[tokenName] = mergeSemanticToneOverride(semantic, toneOverride);
+    }
   }
 
   return next;

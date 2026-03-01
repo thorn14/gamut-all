@@ -18,11 +18,11 @@ const input: TokenInput = {
       '#1e40af', '#1e3a8a',
     ],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'] },
     dark:  { ramp: 'neutral', step: 8, fallback: ['white'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',
@@ -63,7 +63,7 @@ describe('auditRegistry', () => {
     // Build a registry with a deliberately bad override
     const badInput: TokenInput = {
       ...input,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -81,7 +81,7 @@ describe('auditRegistry', () => {
   it('issue message includes key and engine id', () => {
     const badInput: TokenInput = {
       ...input,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -122,53 +122,53 @@ describe('auditDOM', () => {
     expect(result.elementsChecked).toBe(0);
   });
 
-  it('no issues for element with valid data-bg', () => {
+  it('no issues for element with valid data-theme', () => {
     const root = document.createElement('div');
     const child = document.createElement('div');
-    child.setAttribute('data-bg', 'white');
+    child.setAttribute('data-theme', 'white');
     root.appendChild(child);
     const result = auditDOM(root, registry);
-    const bgErrors = result.issues.filter(i => i.type === 'unknown-background');
-    expect(bgErrors).toHaveLength(0);
+    const themeErrors = result.issues.filter(i => i.type === 'unknown-theme');
+    expect(themeErrors).toHaveLength(0);
   });
 
-  it('flags unknown data-bg value', () => {
+  it('flags unknown data-theme value', () => {
     const root = document.createElement('div');
     const child = document.createElement('div');
-    child.setAttribute('data-bg', 'neon-purple');
+    child.setAttribute('data-theme', 'neon-purple');
     root.appendChild(child);
     const result = auditDOM(root, registry);
-    expect(result.issues.some(i => i.type === 'unknown-background')).toBe(true);
-    const issue = result.issues.find(i => i.type === 'unknown-background');
+    expect(result.issues.some(i => i.type === 'unknown-theme')).toBe(true);
+    const issue = result.issues.find(i => i.type === 'unknown-theme');
     expect(issue!.message).toContain('neon-purple');
     expect(issue!.severity).toBe('error');
   });
 
-  it('flags inline style CSS var without data-bg ancestor', () => {
+  it('flags inline style CSS var without data-theme ancestor', () => {
     const root = document.createElement('div');
     const child = document.createElement('p');
     child.setAttribute('style', 'color: var(--fg-primary)');
     root.appendChild(child);
     const result = auditDOM(root, registry);
-    expect(result.issues.some(i => i.type === 'missing-data-bg')).toBe(true);
+    expect(result.issues.some(i => i.type === 'missing-data-theme')).toBe(true);
   });
 
-  it('does NOT flag CSS var when ancestor has data-bg', () => {
+  it('does NOT flag CSS var when ancestor has data-theme', () => {
     const root = document.createElement('div');
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'white');
+    parent.setAttribute('data-theme', 'white');
     const child = document.createElement('p');
     child.setAttribute('style', 'color: var(--fg-primary)');
     parent.appendChild(child);
     root.appendChild(parent);
     const result = auditDOM(root, registry);
-    expect(result.issues.filter(i => i.type === 'missing-data-bg')).toHaveLength(0);
+    expect(result.issues.filter(i => i.type === 'missing-data-theme')).toHaveLength(0);
   });
 
   it('flags unknown token CSS var', () => {
     const root = document.createElement('div');
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'white');
+    parent.setAttribute('data-theme', 'white');
     const child = document.createElement('p');
     child.setAttribute('style', 'color: var(--fg-nonexistent-token)');
     parent.appendChild(child);
@@ -180,7 +180,7 @@ describe('auditDOM', () => {
   it('does not flag non-token CSS vars', () => {
     const root = document.createElement('div');
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'white');
+    parent.setAttribute('data-theme', 'white');
     const child = document.createElement('p');
     // fg-primary is a valid token var
     child.setAttribute('style', 'color: var(--fg-primary); margin: 0;');
@@ -206,18 +206,18 @@ describe('auditDOM', () => {
   it('handles multiple issues in a complex DOM', () => {
     const root = document.createElement('section');
 
-    const badBg = document.createElement('div');
-    badBg.setAttribute('data-bg', 'ghost-bg');
+    const badTheme = document.createElement('div');
+    badTheme.setAttribute('data-theme', 'ghost-theme');
 
-    const noBg = document.createElement('p');
-    noBg.setAttribute('style', 'color: var(--fg-primary)');
+    const noTheme = document.createElement('p');
+    noTheme.setAttribute('style', 'color: var(--fg-primary)');
 
-    root.appendChild(badBg);
-    root.appendChild(noBg);
+    root.appendChild(badTheme);
+    root.appendChild(noTheme);
 
     const result = auditDOM(root, registry);
     const types = result.issues.map(i => i.type);
-    expect(types).toContain('unknown-background');
-    expect(types).toContain('missing-data-bg');
+    expect(types).toContain('unknown-theme');
+    expect(types).toContain('missing-data-theme');
   });
 });

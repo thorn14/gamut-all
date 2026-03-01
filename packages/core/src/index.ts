@@ -4,12 +4,20 @@ export { resolveToken, resolveAllTokens } from './resolver.js';
 export { generateCSS } from './css.js';
 export { serializeRegistry, deserializeRegistry } from './serialize.js';
 export { applyToneMode } from './tone.js';
+export { colorValueToHex, hexToColorValue } from './utils/oklch.js';
 export { wcag21 } from './compliance/wcag21.js';
 export { apca, softClamp } from './compliance/apca.js';
 export type {
+  W3CAnnotations,
+  ColorValue,
+  ColorSpace,
+  ColorComponent,
   TokenInput,
   SemanticInput,
-  BackgroundInput,
+  ThemeInput,
+  SurfaceInput,
+  ProcessedTheme,
+  ProcessedSurface,
   ContextOverrideInput,
   TokenRegistry,
   DesignContext,
@@ -25,3 +33,4 @@ export type {
 } from './types.js';
 export { ALL_FONT_SIZES, ALL_STACKS, DEFAULT_STACK_NAMES, ALL_VISION_MODES } from './types.js';
 export type { StackSurface } from './types.js';
+export type { SerializedRegistry } from './serialize.js';

@@ -3,18 +3,21 @@ import { djb2Hash, serializeRegistry, deserializeRegistry } from '../serialize.j
 import { buildRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const input: TokenInput = {
   primitives: {
-    neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
-    blue:    ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
+    neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
+    blue:    ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'].map(cv),
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'], aliases: ['bg-white'] },
     dark:  { ramp: 'neutral', step: 8 },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',
@@ -57,8 +60,8 @@ describe('serializeRegistry', () => {
   const registry = buildRegistry(processed, wcag21);
   const serialized = serializeRegistry(registry);
 
-  it('version is 1', () => {
-    expect(serialized.version).toBe(1);
+  it('version is 2', () => {
+    expect(serialized.version).toBe(2);
   });
 
   it('meta is preserved', () => {
@@ -79,8 +82,8 @@ describe('serializeRegistry', () => {
     expect(neutralEntry![1].stepCount).toBe(10);
   });
 
-  it('backgrounds serialized with aliases and fallback', () => {
-    const whiteEntry = serialized.backgrounds.find(([k]) => k === 'white');
+  it('themes serialized with aliases and fallback', () => {
+    const whiteEntry = serialized.themes.find(([k]) => k === 'white');
     expect(whiteEntry).toBeDefined();
     expect(whiteEntry![1].aliases).toEqual(['bg-white']);
     expect(whiteEntry![1].fallback).toEqual(['dark']);
@@ -96,8 +99,8 @@ describe('serializeRegistry', () => {
     expect(typeof variant.compliance.metric).toBe('string');
   });
 
-  it('backgroundFallbacks preserved', () => {
-    expect(serialized.backgroundFallbacks['white']).toEqual(['dark']);
+  it('themeFallbacks preserved', () => {
+    expect(serialized.themeFallbacks['white']).toEqual(['dark']);
   });
 
   it('defaults preserved', () => {
@@ -128,10 +131,10 @@ describe('deserializeRegistry', () => {
     expect(neutral!.steps[9]!.hex).toBe('#171717');
   });
 
-  it('backgrounds is a Map', () => {
-    expect(restored.backgrounds).toBeInstanceOf(Map);
-    expect(restored.backgrounds.has('white')).toBe(true);
-    expect(restored.backgrounds.get('white')!.aliases).toEqual(['bg-white']);
+  it('themes is a Map', () => {
+    expect(restored.themes).toBeInstanceOf(Map);
+    expect(restored.themes.has('white')).toBe(true);
+    expect(restored.themes.get('white')!.aliases).toEqual(['bg-white']);
   });
 
   it('variantMap is a Map', () => {
@@ -158,7 +161,7 @@ describe('deserializeRegistry', () => {
     expect(restored.defaults['fgLink']).toBe(registry.defaults['fgLink']);
   });
 
-  it('backgroundFallbacks are preserved after round-trip', () => {
-    expect(restored.backgroundFallbacks['white']).toEqual(['dark']);
+  it('themeFallbacks are preserved after round-trip', () => {
+    expect(restored.themeFallbacks['white']).toEqual(['dark']);
   });
 });

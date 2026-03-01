@@ -3,7 +3,10 @@ import { resolveToken, resolveAllTokens } from '../resolver.js';
 import { buildRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput, DesignContext } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const input: TokenInput = {
   primitives: {
@@ -11,26 +14,26 @@ const input: TokenInput = {
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
       '#a3a3a3', '#737373', '#525252', '#404040',
       '#262626', '#171717',
-    ],
+    ].map(cv),
     blue: [
       '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd',
       '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
       '#1e40af', '#1e3a8a',
-    ],
+    ].map(cv),
     orange: [
       '#fff7ed', '#ffedd5', '#fed7aa', '#fdba74',
       '#fb923c', '#f97316', '#ea580c', '#c2410c',
       '#9a3412', '#7c2d12',
-    ],
+    ].map(cv),
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['light', 'card'] },
     light: { ramp: 'neutral', step: 1, fallback: ['white', 'card'] },
     card: { ramp: 'neutral', step: 2, fallback: ['light', 'white'] },
     dark: { ramp: 'neutral', step: 8, fallback: ['inverse'] },
     inverse: { ramp: 'neutral', step: 9, fallback: ['dark'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',

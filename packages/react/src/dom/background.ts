@@ -1,8 +1,8 @@
-export function readBg(el: Element): string | null {
+export function readTheme(el: Element): string | null {
   let current: Element | null = el;
   while (current) {
-    const bg = current.getAttribute('data-bg');
-    if (bg) return bg;
+    const theme = current.getAttribute('data-theme');
+    if (theme) return theme;
     current = current.parentElement;
   }
   return null;

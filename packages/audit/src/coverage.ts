@@ -77,7 +77,7 @@ function pad(s: string, n: number): string {
  *   - where the configured step sits relative to the allowed range
  *   - which surfaces have no passing steps (mid-tone traps)
  *
- * Uses the registry's own `ramps` and `backgrounds` — no re-parsing needed.
+ * Uses the registry's own `ramps` and `themes` — no re-parsing needed.
  */
 export function auditCoverage(
   registry: TokenRegistry,
@@ -108,7 +108,7 @@ export function auditCoverage(
 
     const surfaces: SurfaceCoverage[] = [];
 
-    for (const [bgName, bg] of registry.backgrounds) {
+    for (const [bgName, bg] of registry.themes) {
       for (const [stack, surface] of bg.surfaces) {
         // Evaluate every step in the ramp against this surface
         const steps: StepResult[] = ramp.steps.map(s => {

@@ -103,6 +103,36 @@ describe('apca.evaluate', () => {
   });
 });
 
+describe('apca.evaluate — ui-component target', () => {
+  const uiCtx = (level: 'AA' | 'AAA' = 'AA') => ({
+    fontSizePx: 16,
+    fontWeight: 400,
+    target: 'ui-component' as const,
+    level,
+  });
+
+  it('AA ui-component required = 30', () => {
+    const result = apca.evaluate('#000000', '#ffffff', uiCtx('AA'));
+    expect(result.required).toBe(30);
+  });
+
+  it('AAA ui-component required = 45', () => {
+    const result = apca.evaluate('#000000', '#ffffff', uiCtx('AAA'));
+    expect(result.required).toBe(45);
+  });
+
+  it('ui-component threshold is size-independent: 12px same as 24px', () => {
+    const r12 = apca.evaluate('#000000', '#ffffff', { fontSizePx: 12, fontWeight: 400, target: 'ui-component', level: 'AA' });
+    const r24 = apca.evaluate('#000000', '#ffffff', { fontSizePx: 24, fontWeight: 400, target: 'ui-component', level: 'AA' });
+    expect(r12.required).toBe(r24.required);
+  });
+
+  it('black on white passes AA ui-component', () => {
+    const result = apca.evaluate('#000000', '#ffffff', uiCtx('AA'));
+    expect(result.pass).toBe(true);
+  });
+});
+
 describe('apca.preferredDirection', () => {
   it('white → darker', () => {
     expect(apca.preferredDirection?.('#ffffff')).toBe('darker');

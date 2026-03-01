@@ -30,7 +30,7 @@ export function useDesignContext(ref: RefObject<Element | null>): DesignContext 
     ro.observe(el);
     mo.observe(el, {
       attributes: true,
-      attributeFilter: ['data-bg', 'data-stack'],
+      attributeFilter: ['data-theme', 'data-stack'],
       subtree: false,
     });
 
@@ -38,7 +38,7 @@ export function useDesignContext(ref: RefObject<Element | null>): DesignContext 
     while (ancestor) {
       mo.observe(ancestor, {
         attributes: true,
-        attributeFilter: ['data-bg', 'data-stack'],
+        attributeFilter: ['data-theme', 'data-stack'],
       });
       ancestor = ancestor.parentElement;
     }

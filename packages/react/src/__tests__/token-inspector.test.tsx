@@ -43,7 +43,7 @@ describe('TokenInspector', () => {
   it('renders token color swatches in dev mode', () => {
     process.env['NODE_ENV'] = 'development';
     const { container } = wrap(
-      <div data-bg="white">
+      <div data-theme="white">
         <TokenInspector />
       </div>
     );

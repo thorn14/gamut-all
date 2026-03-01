@@ -1,6 +1,6 @@
 import type {
   ProcessedRamp,
-  ProcessedBackground,
+  ProcessedTheme,
   ComplianceEngine,
   FontSizeClass,
   StackClass,
@@ -75,16 +75,37 @@ function deduplicateRules(rules: ContextRule[]): ContextRule[] {
 export function autoGenerateRules(
   tokenRamp: ProcessedRamp,
   defaultStep: number,
-  backgrounds: Map<string, ProcessedBackground>,
+  themes: Map<string, ProcessedTheme>,
   compliance: ComplianceEngine,
   wcagTarget: 'AA' | 'AAA',
   fontSizes: FontSizeClass[],
   stacks: StackClass[],
   stepSelectionStrategy: StepSelectionStrategy = 'closest',
+  complianceTarget: 'text' | 'ui-component' | 'decorative' = 'text',
 ): ContextRule[] {
   const rules: ContextRule[] = [];
 
-  for (const [bgName, bg] of backgrounds) {
+  // ── decorative tokens — WCAG-exempt, no compliance correction ──────────────
+  // With mirror-closest, flip the step on dark bgs to preserve visual weight.
+  if (complianceTarget === 'decorative') {
+    if (stepSelectionStrategy === 'mirror-closest') {
+      const mirroredStep = tokenRamp.steps.length - 1 - defaultStep;
+      if (mirroredStep !== defaultStep) {
+        for (const [bgName, bg] of themes) {
+          if (bg.elevationDirection === 'lighter') {
+            for (const stack of stacks) {
+              for (const fontSize of fontSizes) {
+                rules.push({ bg: bgName, fontSize, stack, step: mirroredStep });
+              }
+            }
+          }
+        }
+      }
+    }
+    return deduplicateRules(rules);
+  }
+
+  for (const [bgName, bg] of themes) {
     for (const stack of stacks) {
       const surface = bg.surfaces.get(stack);
       if (!surface) continue;
@@ -93,7 +114,7 @@ export function autoGenerateRules(
         const context = {
           fontSizePx: parseInt(fontSize, 10),
           fontWeight: 400,
-          target: 'text' as const,
+          target: complianceTarget,
           level: wcagTarget,
         };
 
@@ -102,6 +123,42 @@ export function autoGenerateRules(
 
         // Compliance is checked against this stack's surface, not the bg base
         const baseEval = compliance.evaluate(baseStep.hex, surface.hex, context);
+
+        // ── ui-component tokens (borders, focus rings) ─────────────────────
+        // For SC 1.4.11 targets we want the most-subtle step that still meets the
+        // threshold — bypass mirror-closest (which overshoots for subtle borders).
+        if (complianceTarget === 'ui-component') {
+          const passesF = (hex: string) => compliance.evaluate(hex, surface.hex, context).pass;
+          const bgIsLight = surface.relativeLuminance > 0.5;
+          if (baseEval.pass) {
+            // Default already passes: search toward the surface to find the most-subtle
+            // passing step (avoid over-bright or over-dark borders).
+            let minViableStep = defaultStep;
+            if (bgIsLight) {
+              for (let i = defaultStep - 1; i >= 0; i--) {
+                const s = tokenRamp.steps[i];
+                if (s && passesF(s.hex)) { minViableStep = i; } else { break; }
+              }
+            } else {
+              for (let i = defaultStep + 1; i < tokenRamp.steps.length; i++) {
+                const s = tokenRamp.steps[i];
+                if (s && passesF(s.hex)) { minViableStep = i; } else { break; }
+              }
+            }
+            if (minViableStep !== defaultStep) {
+              rules.push({ bg: bgName, fontSize, stack, step: minViableStep });
+            }
+          } else {
+            // Default fails: find the closest passing step toward the needed direction.
+            const searchDirection = bgIsLight ? 'darker' : 'lighter';
+            const passingStep = findClosestPassingStep(tokenRamp, defaultStep, passesF, searchDirection);
+            if (passingStep !== null && passingStep !== defaultStep) {
+              rules.push({ bg: bgName, fontSize, stack, step: passingStep });
+            }
+          }
+          continue;
+        }
+        // ── text tokens: existing correction logic ──────────────────────────
         if (baseEval.pass) continue;
 
         const passes = (candidateHex: string) => compliance.evaluate(candidateHex, surface.hex, context).pass;

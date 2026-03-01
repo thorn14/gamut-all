@@ -1,6 +1,6 @@
 import type { DesignContext, VisionMode } from '@gamut-all/core';
 import { readFontSize } from './dom/font-size.js';
-import { readBg } from './dom/background.js';
+import { readTheme } from './dom/background.js';
 import { readStack } from './dom/stack.js';
 
 export function detectContext(
@@ -9,11 +9,11 @@ export function detectContext(
   visionMode: VisionMode,
   devMode: boolean = false,
 ): DesignContext {
-  const bg = readBg(el);
+  const bg = readTheme(el);
   if (bg === null && devMode) {
     console.warn(
-      `[gamut-all] No data-bg attribute found for element or its ancestors. ` +
-      `Falling back to defaultBg="${defaultBg}". Add data-bg to your layout root.`
+      `[gamut-all] No data-theme attribute found for element or its ancestors. ` +
+      `Falling back to defaultBg="${defaultBg}". Add data-theme to your layout root.`
     );
   }
   return {
