@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { bucketFontSize, readFontSize } from '../dom/font-size.js';
-import { readBg } from '../dom/background.js';
+import { readTheme } from '../dom/background.js';
 import { readStack } from '../dom/stack.js';
 
 // ── bucketFontSize ────────────────────────────────────────────────────────────
@@ -30,37 +30,37 @@ describe('readFontSize', () => {
   });
 });
 
-// ── readBg ────────────────────────────────────────────────────────────────────
+// ── readTheme ─────────────────────────────────────────────────────────────────
 
-describe('readBg', () => {
-  it('finds data-bg on the element itself', () => {
+describe('readTheme', () => {
+  it('finds data-theme on the element itself', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-bg', 'white');
-    expect(readBg(el)).toBe('white');
+    el.setAttribute('data-theme', 'white');
+    expect(readTheme(el)).toBe('white');
   });
 
-  it('walks up to parent to find data-bg', () => {
+  it('walks up to parent to find data-theme', () => {
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'dark');
+    parent.setAttribute('data-theme', 'dark');
     const child = document.createElement('span');
     parent.appendChild(child);
-    expect(readBg(child)).toBe('dark');
+    expect(readTheme(child)).toBe('dark');
   });
 
-  it('returns null when no data-bg exists in ancestor chain', () => {
+  it('returns null when no data-theme exists in ancestor chain', () => {
     const el = document.createElement('div');
-    expect(readBg(el)).toBeNull();
+    expect(readTheme(el)).toBeNull();
   });
 
   it('prefers closest ancestor', () => {
     const grandparent = document.createElement('div');
-    grandparent.setAttribute('data-bg', 'dark');
+    grandparent.setAttribute('data-theme', 'dark');
     const parent = document.createElement('div');
-    parent.setAttribute('data-bg', 'white');
+    parent.setAttribute('data-theme', 'white');
     const child = document.createElement('span');
     grandparent.appendChild(parent);
     parent.appendChild(child);
-    expect(readBg(child)).toBe('white');
+    expect(readTheme(child)).toBe('white');
   });
 });
 

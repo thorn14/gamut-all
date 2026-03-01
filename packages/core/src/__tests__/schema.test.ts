@@ -1,21 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { validateSchema } from '../schema.js';
+import { hexToColorValue } from '../utils/oklch.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const validPrimitives = {
-  neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
-  blue:    ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'],
+  neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
+  blue:    ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'].map(cv),
 };
 
-const validBackgrounds = {
+const validThemes = {
   white: { ramp: 'neutral', step: 0 },
   dark:  { ramp: 'neutral', step: 8 },
 };
 
-const validSemantics = {
+const validForeground = {
   fgPrimary: { ramp: 'neutral', defaultStep: 8 },
 };
 
-const base = { primitives: validPrimitives, backgrounds: validBackgrounds, semantics: validSemantics };
+const base = { primitives: validPrimitives, themes: validThemes, foreground: validForeground };
 
 describe('validateSchema — top-level', () => {
   it('accepts valid minimal input', () => {
@@ -35,27 +38,33 @@ describe('validateSchema — top-level', () => {
   });
 
   it('rejects missing primitives', () => {
-    const result = validateSchema({ backgrounds: validBackgrounds, semantics: validSemantics });
+    const result = validateSchema({ themes: validThemes, foreground: validForeground });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives'))).toBe(true);
   });
 
   it('rejects primitives as array', () => {
-    const result = validateSchema({ primitives: [], backgrounds: validBackgrounds, semantics: validSemantics });
+    const result = validateSchema({ primitives: [], themes: validThemes, foreground: validForeground });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives'))).toBe(true);
   });
 
-  it('rejects missing backgrounds', () => {
-    const result = validateSchema({ primitives: validPrimitives, semantics: validSemantics });
+  it('rejects missing themes', () => {
+    const result = validateSchema({ primitives: validPrimitives, foreground: validForeground });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('backgrounds'))).toBe(true);
+    expect(result.errors.some(e => e.includes('themes'))).toBe(true);
   });
 
-  it('rejects missing semantics', () => {
-    const result = validateSchema({ primitives: validPrimitives, backgrounds: validBackgrounds });
+  it('rejects missing foreground', () => {
+    const result = validateSchema({ primitives: validPrimitives, themes: validThemes });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('semantics'))).toBe(true);
+    expect(result.errors.some(e => e.includes('foreground'))).toBe(true);
+  });
+
+  it('rejects old semantics key with clear error', () => {
+    const result = validateSchema({ primitives: validPrimitives, themes: validThemes, semantics: validForeground, foreground: validForeground });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.includes('"semantics" is not valid'))).toBe(true);
   });
 });
 
@@ -63,18 +72,18 @@ describe('validateSchema — primitives', () => {
   it('rejects ramp that is not an array', () => {
     const result = validateSchema({
       primitives: { neutral: 'not-an-array' },
-      backgrounds: validBackgrounds,
-      semantics: validSemantics,
+      themes: validThemes,
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives.neutral') && e.includes('array'))).toBe(true);
   });
 
-  it('rejects invalid hex in ramp', () => {
+  it('rejects invalid ColorValue in ramp', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fafafa', 'notahex', '#262626'] },
-      backgrounds: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 2 } },
+      primitives: { neutral: [cv('#fafafa'), { colorSpace: 'invalid', components: [0] }, cv('#262626')] },
+      themes: { white: { ramp: 'neutral', step: 0 } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 2 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('primitives.neutral[1]'))).toBe(true);
@@ -82,50 +91,50 @@ describe('validateSchema — primitives', () => {
 
   it('accepts 3-digit hex colors', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fff', '#000'] },
-      backgrounds: { white: { ramp: 'neutral', step: 0 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 1 } },
+      primitives: { neutral: ['#fff', '#000'].map(cv) },
+      themes: { white: { ramp: 'neutral', step: 0 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 1 } },
     });
     expect(result.valid).toBe(true);
   });
 });
 
-describe('validateSchema — backgrounds', () => {
-  it('rejects background with unknown ramp', () => {
+describe('validateSchema — themes', () => {
+  it('rejects theme with unknown ramp', () => {
     const result = validateSchema({
       primitives: validPrimitives,
-      backgrounds: { white: { ramp: 'missing', step: 0 } },
-      semantics: validSemantics,
+      themes: { white: { ramp: 'missing', step: 0 } },
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('unknown ramp') && e.includes('missing'))).toBe(true);
   });
 
-  it('rejects background with out-of-bounds step', () => {
+  it('rejects theme with out-of-bounds step', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fafafa', '#262626'] },
-      backgrounds: { white: { ramp: 'neutral', step: 5 } },
-      semantics: { fg: { ramp: 'neutral', defaultStep: 0 } },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
+      themes: { white: { ramp: 'neutral', step: 5 } },
+      foreground: { fg: { ramp: 'neutral', defaultStep: 0 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('out of bounds'))).toBe(true);
   });
 
-  it('rejects background as array', () => {
+  it('rejects theme as array', () => {
     const result = validateSchema({
       primitives: validPrimitives,
-      backgrounds: { white: [] },
-      semantics: validSemantics,
+      themes: { white: [] },
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('backgrounds.white'))).toBe(true);
+    expect(result.errors.some(e => e.includes('themes.white'))).toBe(true);
   });
 
-  it('rejects background with non-string ramp', () => {
+  it('rejects theme with non-string ramp', () => {
     const result = validateSchema({
       primitives: validPrimitives,
-      backgrounds: { white: { ramp: 42, step: 0 } },
-      semantics: validSemantics,
+      themes: { white: { ramp: 42, step: 0 } },
+      foreground: validForeground,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('ramp must be a string'))).toBe(true);
@@ -133,11 +142,11 @@ describe('validateSchema — backgrounds', () => {
 
 });
 
-describe('validateSchema — semantics', () => {
+describe('validateSchema — foreground / nonText', () => {
   it('rejects semantic with unknown ramp', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'missing', defaultStep: 0 } },
+      foreground: { fgPrimary: { ramp: 'missing', defaultStep: 0 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('unknown ramp'))).toBe(true);
@@ -145,18 +154,26 @@ describe('validateSchema — semantics', () => {
 
   it('rejects semantic with out-of-bounds defaultStep', () => {
     const result = validateSchema({
-      primitives: { neutral: ['#fafafa', '#262626'] },
-      backgrounds: validBackgrounds,
-      semantics: { fg: { ramp: 'neutral', defaultStep: 9 } },
+      primitives: { neutral: ['#fafafa', '#262626'].map(cv) },
+      themes: validThemes,
+      foreground: { fg: { ramp: 'neutral', defaultStep: 9 } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('defaultStep'))).toBe(true);
   });
 
+  it('accepts token with no defaultStep (auto-selected)', () => {
+    const result = validateSchema({
+      ...base,
+      foreground: { fgAuto: { ramp: 'neutral' } },
+    });
+    expect(result.valid).toBe(true);
+  });
+
   it('rejects overrides as non-array', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 8, overrides: 'bad' } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 8, overrides: 'bad' } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('overrides must be an array'))).toBe(true);
@@ -165,7 +182,7 @@ describe('validateSchema — semantics', () => {
   it('rejects override with out-of-bounds step', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -177,10 +194,10 @@ describe('validateSchema — semantics', () => {
     expect(result.errors.some(e => e.includes('overrides[0].step'))).toBe(true);
   });
 
-  it('rejects override referencing unknown background', () => {
+  it('rejects override referencing unknown theme', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,
@@ -189,13 +206,13 @@ describe('validateSchema — semantics', () => {
       },
     });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('unknown background') && e.includes('nosuchbg'))).toBe(true);
+    expect(result.errors.some(e => e.includes('unknown theme') && e.includes('nosuchbg'))).toBe(true);
   });
 
   it('rejects interactions as array', () => {
     const result = validateSchema({
       ...base,
-      semantics: { fgPrimary: { ramp: 'neutral', defaultStep: 8, interactions: [] } },
+      foreground: { fgPrimary: { ramp: 'neutral', defaultStep: 8, interactions: [] } },
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('interactions must be an object'))).toBe(true);
@@ -204,7 +221,7 @@ describe('validateSchema — semantics', () => {
   it('rejects interaction state with out-of-bounds step', () => {
     const result = validateSchema({
       ...base,
-      semantics: {
+      foreground: {
         fgLink: {
           ramp: 'neutral',
           defaultStep: 6,
@@ -225,24 +242,24 @@ describe('validateSchema — config', () => {
     expect(result.errors.some(e => e.includes('config must be an object'))).toBe(true);
   });
 
-  it('rejects defaultBg that is not in backgrounds', () => {
+  it('rejects defaultTheme that is not in themes', () => {
     const result = validateSchema({
       ...base,
-      config: { defaultBg: 'nonexistent' },
+      config: { defaultTheme: 'nonexistent' },
     });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('config.defaultBg') && e.includes('nonexistent'))).toBe(true);
+    expect(result.errors.some(e => e.includes('config.defaultTheme') && e.includes('nonexistent'))).toBe(true);
   });
 
-  it('accepts valid defaultBg', () => {
-    const result = validateSchema({ ...base, config: { defaultBg: 'white' } });
+  it('accepts valid defaultTheme', () => {
+    const result = validateSchema({ ...base, config: { defaultTheme: 'white' } });
     expect(result.valid).toBe(true);
   });
 
-  it('rejects defaultBg as non-string', () => {
-    const result = validateSchema({ ...base, config: { defaultBg: 42 } });
+  it('rejects defaultTheme as non-string', () => {
+    const result = validateSchema({ ...base, config: { defaultTheme: 42 } });
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('defaultBg must be a string'))).toBe(true);
+    expect(result.errors.some(e => e.includes('defaultTheme must be a string'))).toBe(true);
   });
 
   it('accepts valid stepSelectionStrategy', () => {

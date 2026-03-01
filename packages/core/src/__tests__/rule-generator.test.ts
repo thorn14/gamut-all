@@ -2,23 +2,29 @@ import { describe, it, expect } from 'vitest';
 import { findClosestPassingStep, autoGenerateRules, expandOverride, patchWithOverrides } from '../rule-generator.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput, ProcessedRamp } from '../types.js';
 import { ALL_FONT_SIZES, ALL_STACKS } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const neutralHexes = [
   '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
   '#a3a3a3', '#737373', '#525252', '#404040',
   '#262626', '#171717',
-];
+].map(cv);
 
 const baseInput: TokenInput = {
   primitives: { neutral: neutralHexes },
-  backgrounds: {
+  config: {
+    stacks: { root: 0, card: 1, modal: 2 },
+  },
+  themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
     inverse: { ramp: 'neutral', step: 9 },
   },
-  semantics: {
+  foreground: {
     fgSecondary: { ramp: 'neutral', defaultStep: 5 },
   },
 };
@@ -30,13 +36,13 @@ function getProcessed() {
 describe('findClosestPassingStep', () => {
   const processed = getProcessed();
   const neutral = processed.ramps.get('neutral')!;
-  const whiteBg = processed.backgrounds.get('white')!;
+  const whiteTheme = processed.themes.get('white')!;
 
   it('returns preferredStep if it passes', () => {
     // Step 8 (#262626) easily passes AA on white
     const result = findClosestPassingStep(
       neutral, 8,
-      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, whiteTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'darker',
     );
     expect(result).toBe(8);
@@ -46,7 +52,7 @@ describe('findClosestPassingStep', () => {
     // Step 4 (#a3a3a3) fails AA on white — should find closer passing step going dark
     const result = findClosestPassingStep(
       neutral, 4,
-      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, whiteTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'darker',
     );
     expect(result).not.toBeNull();
@@ -56,10 +62,10 @@ describe('findClosestPassingStep', () => {
   it('searches lighter when direction=lighter', () => {
     // On dark bg (#262626), step 5 (#737373) fails AA (~2.7:1).
     // Searching lighter (toward index 0) should find step 4 (#a3a3a3) which passes (~5.2:1).
-    const darkBg = processed.backgrounds.get('dark')!;
+    const darkTheme = processed.themes.get('dark')!;
     const result = findClosestPassingStep(
       neutral, 5,
-      (hex) => wcag21.evaluate(hex, darkBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, darkTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'lighter',
     );
     expect(result).not.toBeNull();
@@ -80,7 +86,7 @@ describe('findClosestPassingStep', () => {
   it('either direction returns closer passing step', () => {
     const result = findClosestPassingStep(
       neutral, 5,
-      (hex) => wcag21.evaluate(hex, whiteBg.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
+      (hex) => wcag21.evaluate(hex, whiteTheme.hex, { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' }).pass,
       'either',
     );
     // Should find a passing step
@@ -92,15 +98,15 @@ describe('autoGenerateRules', () => {
   it('generates rules for failing contexts', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
-    // fgSecondary step 5 (#737373) may fail on some backgrounds
+    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    // fgSecondary step 5 (#737373) may fail on some themes
     expect(Array.isArray(rules)).toBe(true);
   });
 
   it('generates rules across all stack levels', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // Rules now span all stacks — each rule has a valid stack name
     const stacksInRules = new Set(rules.map(r => r.stack));
     expect(stacksInRules.size).toBeGreaterThan(1); // multiple stacks are represented
@@ -114,8 +120,8 @@ describe('autoGenerateRules', () => {
     // Step 8 (#262626) on white has 21:1 contrast — no rules needed
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    // Use only white background
-    const onlyWhite = new Map([['white', processed.backgrounds.get('white')!]]);
+    // Use only white theme
+    const onlyWhite = new Map([['white', processed.themes.get('white')!]]);
     const rules = autoGenerateRules(neutral, 8, onlyWhite, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     expect(rules).toHaveLength(0);
   });
@@ -124,7 +130,7 @@ describe('autoGenerateRules', () => {
     // Step 5 (#737373) on dark bg (#262626): low contrast → need lighter step
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const onlyDark = new Map([['dark', processed.backgrounds.get('dark')!]]);
+    const onlyDark = new Map([['dark', processed.themes.get('dark')!]]);
     const rules = autoGenerateRules(neutral, 5, onlyDark, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // Should generate rules
     expect(rules.length).toBeGreaterThan(0);
@@ -136,7 +142,7 @@ describe('autoGenerateRules', () => {
   it('deduplicates rules with same bg+fontSize+stack', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.backgrounds, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     const keys = rules.map(r => `${r.bg}__${r.fontSize}__${r.stack}`);
     const unique = new Set(keys);
     expect(keys.length).toBe(unique.size);
@@ -145,7 +151,7 @@ describe('autoGenerateRules', () => {
   it('mirror-closest strategy prefers mirrored step for root stack', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const onlyDark = new Map([['dark', processed.backgrounds.get('dark')!]]);
+    const onlyDark = new Map([['dark', processed.themes.get('dark')!]]);
 
     const rules = autoGenerateRules(
       neutral,
@@ -170,13 +176,72 @@ describe('autoGenerateRules', () => {
   it('uses AAA target when requested', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const onlyWhite = new Map([['white', processed.backgrounds.get('white')!]]);
+    const onlyWhite = new Map([['white', processed.themes.get('white')!]]);
     const rules = autoGenerateRules(neutral, 5, onlyWhite, wcag21, 'AAA', ALL_FONT_SIZES, ALL_STACKS);
 
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) {
       expect(rule.step).toBeGreaterThan(5);
     }
+  });
+});
+
+describe('autoGenerateRules — decorative', () => {
+  const processed = getProcessed();
+  const neutral = processed.ramps.get('neutral')!;
+  const themes = processed.themes;
+
+  it('returns no rules for decorative with closest strategy', () => {
+    const rules = autoGenerateRules(
+      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'closest', 'decorative',
+    );
+    expect(rules).toHaveLength(0);
+  });
+
+  it('returns no rules for decorative with mirror-closest on a symmetric step', () => {
+    // Step 4 on a 10-step ramp: mirror = 9-4 = 5 — not same, should produce rules
+    // Step 4 on a 9-step ramp (length 9): mirror = 8-4 = 4 — same step, no rules
+    // Use step that mirrors to itself: with 10 steps, no step mirrors to itself (9-step odd)
+    // Use a 2-step ramp where step 0 mirrors to step 1 and vice-versa
+    // Actually: with 10 steps, step 4 mirrors to 5 (different) — will always produce rules for dark bgs
+    // So test a theme set that's only light bgs:
+    const lightOnlyInput: TokenInput = {
+      ...baseInput,
+      themes: { white: { ramp: 'neutral', step: 0 } },
+    };
+    const lightProcessed = processInput(lightOnlyInput);
+    const rules = autoGenerateRules(
+      neutral, 3, lightProcessed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+    );
+    // white is a light bg (elevationDirection darker) — no mirror needed
+    expect(rules).toHaveLength(0);
+  });
+
+  it('mirrors step on dark bg with mirror-closest strategy', () => {
+    // dark theme has elevationDirection 'lighter' — should mirror
+    // step 3 on 10-step ramp mirrors to step 6
+    const rules = autoGenerateRules(
+      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+    );
+    const darkRules = rules.filter(r => r.bg === 'dark');
+    expect(darkRules.length).toBeGreaterThan(0);
+    expect(darkRules.every(r => r.step === 6)).toBe(true);
+  });
+
+  it('does not mirror step on light bg with mirror-closest strategy', () => {
+    const rules = autoGenerateRules(
+      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+    );
+    const whiteRules = rules.filter(r => r.bg === 'white');
+    expect(whiteRules).toHaveLength(0);
+  });
+
+  it('wcag-exempt metric returned when target is decorative', () => {
+    const result = wcag21.evaluate('#d4d4d4', '#fafafa', {
+      fontSizePx: 16, fontWeight: 400, target: 'decorative', level: 'AA',
+    });
+    expect(result.pass).toBe(true);
+    expect(result.metric).toBe('wcag-exempt');
   });
 });
 

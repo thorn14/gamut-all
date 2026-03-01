@@ -18,13 +18,13 @@ describe('StackLayer', () => {
     expect(screen.getByTestId('layer')).toHaveAttribute('data-stack', 'card');
   });
 
-  it('renders with correct data-bg attribute', () => {
+  it('renders with correct data-theme attribute', () => {
     wrap(
       <StackLayer stack="root" bg="dark" data-testid="layer">
         content
       </StackLayer>
     );
-    expect(screen.getByTestId('layer')).toHaveAttribute('data-bg', 'dark');
+    expect(screen.getByTestId('layer')).toHaveAttribute('data-theme', 'dark');
   });
 
   it('renders as a div by default', () => {
@@ -54,12 +54,12 @@ describe('StackLayer', () => {
     expect(screen.getByTestId('child').textContent).toBe('hello');
   });
 
-  it('omits data-bg when bg is not provided', () => {
+  it('omits data-theme when bg is not provided', () => {
     wrap(
       <StackLayer stack="card" data-testid="layer">
         content
       </StackLayer>
     );
-    expect(screen.getByTestId('layer')).not.toHaveAttribute('data-bg');
+    expect(screen.getByTestId('layer')).not.toHaveAttribute('data-theme');
   });
 });

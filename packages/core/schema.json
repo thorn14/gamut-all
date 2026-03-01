@@ -2,21 +2,25 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamut-all.dev/schema/token-input.json",
   "title": "TokenInput",
-  "description": "Design token input for @gamut-all/core",
+  "description": "Design token input for @gamut-all/core. Color values follow the W3C Design Tokens Color Module 2025.10 specification.",
   "type": "object",
-  "required": ["primitives", "backgrounds", "semantics"],
+  "required": ["primitives", "themes", "foreground"],
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema":      { "type": "string" },
+    "$primitives":  { "type": "string", "description": "Relative path to an external primitives JSON file. Resolved by the vite plugin before processInput." },
+    "$description": { "$ref": "#/$defs/W3CAnnotations/properties/$description" },
+    "$version":     { "type": "string", "description": "Semantic version of this token file, e.g. \"1.0.0\"." },
+    "$extensions":  { "$ref": "#/$defs/W3CAnnotations/properties/$extensions" },
     "config": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "wcagTarget": { "type": "string", "enum": ["AA", "AAA"] },
-        "complianceEngine": { "type": "string", "enum": ["wcag21", "apca"] },
-        "onUnresolvedOverride": { "type": "string", "enum": ["error", "warn"] },
-        "defaultBg": { "type": "string" },
-        "stepSelectionStrategy": { "type": "string", "enum": ["closest", "mirror-closest"] },
+        "wcagTarget":             { "type": "string", "enum": ["AA", "AAA"] },
+        "complianceEngine":       { "type": "string", "enum": ["wcag21", "apca"] },
+        "onUnresolvedOverride":   { "type": "string", "enum": ["error", "warn"] },
+        "defaultTheme":           { "type": "string" },
+        "stepSelectionStrategy":  { "type": "string", "enum": ["closest", "mirror-closest"] },
         "stacks": {
           "type": "object",
           "additionalProperties": { "type": "integer", "minimum": 0 },
@@ -31,113 +35,194 @@
       "additionalProperties": {
         "type": "array",
         "items": {
-          "type": "string",
-          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+          "oneOf": [
+            { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "description": "Hex color shorthand" },
+            { "$ref": "#/$defs/ColorValue" }
+          ]
         }
       }
     },
-    "backgrounds": {
+    "themes": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
         "required": ["ramp", "step"],
         "additionalProperties": false,
         "properties": {
-          "ramp": { "type": "string" },
-          "step": { "type": "integer", "minimum": 0 },
-          "fallback": {
-            "type": "array",
-            "items": { "type": "string" }
-          },
-          "aliases": {
-            "type": "array",
-            "items": { "type": "string" }
-          },
+          "$description": { "$ref": "#/$defs/W3CAnnotations/properties/$description" },
+          "$deprecated":  { "$ref": "#/$defs/W3CAnnotations/properties/$deprecated" },
+          "$extensions":  { "$ref": "#/$defs/W3CAnnotations/properties/$extensions" },
+          "ramp":    { "type": "string" },
+          "step":    { "type": "integer", "minimum": 0 },
+          "fallback": { "type": "array", "items": { "type": "string" } },
+          "aliases":  { "type": "array", "items": { "type": "string" } },
           "tone": {
             "type": "object",
             "additionalProperties": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "ramp": { "type": "string" },
-                "step": { "type": "integer", "minimum": 0 },
-                "fallback": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                },
-                "aliases": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                }
+                "ramp":     { "type": "string" },
+                "step":     { "type": "integer", "minimum": 0 },
+                "fallback": { "type": "array", "items": { "type": "string" } },
+                "aliases":  { "type": "array", "items": { "type": "string" } }
               }
             }
           }
         }
       }
     },
-    "semantics": {
+    "surfaces": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["ramp", "defaultStep"],
+        "required": ["ramp", "step"],
         "additionalProperties": false,
         "properties": {
+          "$description": { "$ref": "#/$defs/W3CAnnotations/properties/$description" },
+          "$deprecated":  { "$ref": "#/$defs/W3CAnnotations/properties/$deprecated" },
+          "$extensions":  { "$ref": "#/$defs/W3CAnnotations/properties/$extensions" },
           "ramp": { "type": "string" },
-          "defaultStep": { "type": "integer", "minimum": 0 },
-          "overrides": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/ContextOverrideInput" }
-          },
-          "tone": {
+          "step": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "foreground": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/SemanticToken" }
+    },
+    "nonText": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/SemanticToken" }
+    }
+  },
+  "$defs": {
+    "SemanticToken": {
+      "type": "object",
+      "required": ["ramp"],
+      "additionalProperties": false,
+      "properties": {
+        "$description": { "$ref": "#/$defs/W3CAnnotations/properties/$description" },
+        "$deprecated":  { "$ref": "#/$defs/W3CAnnotations/properties/$deprecated" },
+        "$extensions":  { "$ref": "#/$defs/W3CAnnotations/properties/$extensions" },
+        "$type": {
+          "type": "string",
+          "description": "W3C token type. For gamut-all semantics this is always \"color\" but may be declared explicitly for tooling compatibility."
+        },
+        "ramp":        { "type": "string" },
+        "defaultStep": { "type": "integer", "minimum": 0 },
+        "decorative":  { "type": "boolean", "description": "Mark as decorative/WCAG-exempt. No compliance threshold enforced; mirror-closest still applies across theme changes." },
+        "overrides": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ContextOverrideInput" }
+        },
+        "tone": {
+          "type": "object",
+          "additionalProperties": {
             "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "ramp": { "type": "string" },
-                "defaultStep": { "type": "integer", "minimum": 0 },
-                "overrides": {
-                  "type": "array",
-                  "items": { "$ref": "#/$defs/ContextOverrideInput" }
-                }
+            "additionalProperties": false,
+            "properties": {
+              "ramp":        { "type": "string" },
+              "defaultStep": { "type": "integer", "minimum": 0 },
+              "overrides": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/ContextOverrideInput" }
               }
             }
-          },
-          "interactions": {
+          }
+        },
+        "interactions": {
+          "type": "object",
+          "additionalProperties": {
             "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "required": ["step"],
-              "additionalProperties": false,
-              "properties": {
-                "step": { "type": "integer", "minimum": 0 },
-                "overrides": {
-                  "type": "array",
-                  "items": { "$ref": "#/$defs/ContextOverrideInput" }
-                }
+            "required": ["step"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "integer", "minimum": 0 },
+              "overrides": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/ContextOverrideInput" }
               }
             }
-          },
-          "vision": {
+          }
+        },
+        "vision": {
+          "type": "object",
+          "additionalProperties": {
             "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "ramp": { "type": "string" },
-                "defaultStep": { "type": "integer", "minimum": 0 },
-                "overrides": {
-                  "type": "array",
-                  "items": { "$ref": "#/$defs/ContextOverrideInput" }
-                }
+            "additionalProperties": false,
+            "properties": {
+              "ramp":        { "type": "string" },
+              "defaultStep": { "type": "integer", "minimum": 0 },
+              "overrides": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/ContextOverrideInput" }
               }
             }
           }
         }
       }
-    }
-  },
-  "$defs": {
+    },
+    "W3CAnnotations": {
+      "description": "Shared W3C Design Tokens Format Module 2025.10 annotation fields.",
+      "properties": {
+        "$description": {
+          "type": "string",
+          "description": "Plain-text description of this token or group. Shown in tooling, style-guides, and generated docs."
+        },
+        "$deprecated": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string" }
+          ],
+          "description": "Mark as deprecated. Use true or a string message explaining the replacement."
+        },
+        "$extensions": {
+          "type": "object",
+          "description": "Vendor-specific metadata. Keys should be namespaced with a reverse-domain prefix, e.g. \"com.acme.figmaId\".",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ColorValue": {
+      "type": "object",
+      "description": "A color value per W3C Design Tokens Color Module 2025.10. See https://www.designtokens.org/tr/2025.10/color/",
+      "required": ["colorSpace", "components"],
+      "additionalProperties": false,
+      "properties": {
+        "$description": { "$ref": "#/$defs/W3CAnnotations/properties/$description" },
+        "$extensions":  { "$ref": "#/$defs/W3CAnnotations/properties/$extensions" },
+        "colorSpace": {
+          "type": "string",
+          "enum": [
+            "srgb", "srgb-linear", "hsl", "hwb",
+            "lab", "lch", "oklab", "oklch",
+            "display-p3", "a98-rgb", "prophoto-rgb", "rec2020",
+            "xyz-d65", "xyz-d50"
+          ]
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string", "const": "none" }
+            ]
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "alpha": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "hex": {
+          "type": "string",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        }
+      }
+    },
     "ContextOverrideInput": {
       "type": "object",
       "required": ["step"],

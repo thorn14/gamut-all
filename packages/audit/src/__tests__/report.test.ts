@@ -19,9 +19,9 @@ const resultWithIssues: AuditResult = {
       detail: { hex: '#a3a3a3', bgHex: '#fafafa', value: 2.32, required: 4.5, engine: 'wcag21' },
     },
     {
-      type: 'missing-data-bg',
+      type: 'missing-data-theme',
       severity: 'warning',
-      message: 'Element uses var(--fg-primary) but has no data-bg in ancestor chain',
+      message: 'Element uses var(--fg-primary) but has no data-theme in ancestor chain',
       detail: { varName: 'fg-primary', tag: 'p' },
     },
   ],
@@ -63,7 +63,7 @@ describe('formatText', () => {
   it('lists warnings section when warnings present', () => {
     const text = formatText(resultWithIssues);
     expect(text).toContain('Warnings (1):');
-    expect(text).toContain('[missing-data-bg]');
+    expect(text).toContain('[missing-data-theme]');
   });
 
   it('includes issue message in output', () => {
@@ -129,7 +129,7 @@ describe('formatJSON', () => {
     const parsed = JSON.parse(formatJSON(resultWithIssues));
     expect(parsed.issues).toHaveLength(2);
     expect(parsed.issues[0].type).toBe('non-compliant-variant');
-    expect(parsed.issues[1].type).toBe('missing-data-bg');
+    expect(parsed.issues[1].type).toBe('missing-data-theme');
   });
 
   it('empty issues produces empty array', () => {

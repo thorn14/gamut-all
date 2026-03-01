@@ -3,7 +3,10 @@ import { generateCSS, tokenToCssVar } from '../css.js';
 import { buildRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const input: TokenInput = {
   primitives: {
@@ -11,23 +14,18 @@ const input: TokenInput = {
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
       '#a3a3a3', '#737373', '#525252', '#404040',
       '#262626', '#171717',
-    ],
-    red: [
-      '#fef2f2', '#fee2e2', '#fecaca', '#fca5a5',
-      '#f87171', '#ef4444', '#dc2626', '#b91c1c',
-      '#991b1b', '#7f1d1d',
-    ],
-    green: [
-      '#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac',
-      '#4ade80', '#22c55e', '#16a34a', '#15803d',
-      '#166534', '#14532d',
-    ],
+    ].map(cv),
+    orange: [
+      '#fff7ed', '#ffedd5', '#fed7aa', '#fdba74',
+      '#fb923c', '#f97316', '#ea580c', '#c2410c',
+      '#9a3412', '#7c2d12',
+    ].map(cv),
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgError: {
       ramp: 'red',
@@ -94,15 +92,15 @@ describe('generateCSS', () => {
     expect(css).toContain('--neutral-9:');
   });
 
-  it('contains [data-bg] overrides for non-default backgrounds', () => {
-    expect(css).toContain('[data-bg="dark"]');
+  it('contains [data-theme] overrides for non-default themes', () => {
+    expect(css).toContain('[data-theme="dark"]');
   });
 
   it('vision mode block uses descendant combinator (space)', () => {
-    // [data-vision="deuteranopia"] [data-bg="dark"] — SPACE between selectors
-    const hasDescendant = css.includes('[data-vision="deuteranopia"] [data-bg=');
-    const hasCompound = css.includes('[data-vision="deuteranopia"][data-bg=');
-    // If vision+bg combo exists, it must use descendant combinator
+    // [data-vision="deuteranopia"] [data-theme="dark"] — SPACE between selectors
+    const hasDescendant = css.includes('[data-vision="deuteranopia"] [data-theme=');
+    const hasCompound = css.includes('[data-vision="deuteranopia"][data-theme=');
+    // If vision+theme combo exists, it must use descendant combinator
     if (hasDescendant || hasCompound) {
       expect(hasDescendant).toBe(true);
       expect(hasCompound).toBe(false);
@@ -136,11 +134,11 @@ describe('generateCSS', () => {
     }
   });
 
-  it('only emits standalone [data-bg] block if values differ from :root', () => {
-    // white is the default bg — no standalone [data-bg="white"] { block should appear.
-    // Vision descendant selectors like [data-vision="X"] [data-bg="white"] are fine.
-    // A standalone block starts a new line with [data-bg="white"] at the very beginning.
-    const standaloneBlock = /^\[data-bg="white"\]\s*\{/m.test(css);
+  it('only emits standalone [data-theme] block if values differ from :root', () => {
+    // white is the default theme — no standalone [data-theme="white"] { block should appear.
+    // Vision descendant selectors like [data-vision="X"] [data-theme="white"] are fine.
+    // A standalone block starts a new line with [data-theme="white"] at the very beginning.
+    const standaloneBlock = /^\[data-theme="white"\]\s*\{/m.test(css);
     expect(standaloneBlock).toBe(false);
   });
 });

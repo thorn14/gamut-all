@@ -16,11 +16,11 @@ const input: TokenInput = {
       '#1e40af', '#1e3a8a',
     ],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'] },
     dark:  { ramp: 'neutral', step: 8, fallback: ['white'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',
@@ -126,7 +126,7 @@ describe('auditCoverage', () => {
     // Build a registry where a mid-tone surface exists
     const midInput: TokenInput = {
       ...input,
-      backgrounds: {
+      themes: {
         mid: { ramp: 'neutral', step: 4 }, // #a3a3a3 mid-tone
       },
       config: { stacks: { root: 0 } },
@@ -203,7 +203,7 @@ describe('formatCoverageText', () => {
   it('no-passing-steps surfaces show warning', () => {
     const midInput: TokenInput = {
       ...input,
-      backgrounds: { mid: { ramp: 'neutral', step: 4 } },
+      themes: { mid: { ramp: 'neutral', step: 4 } },
       config: { stacks: { root: 0 } },
     };
     const midRegistry = buildRegistry(processInput(midInput), wcag21);

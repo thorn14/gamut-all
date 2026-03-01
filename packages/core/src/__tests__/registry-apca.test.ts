@@ -3,7 +3,10 @@ import { buildRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { apca } from '../compliance/apca.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
+
+const cv = (hex: string) => hexToColorValue(hex);
 
 const input: TokenInput = {
   primitives: {
@@ -11,7 +14,7 @@ const input: TokenInput = {
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
       '#a3a3a3', '#737373', '#525252', '#404040',
       '#262626', '#171717',
-    ],
+    ].map(cv),
     blue: [
       '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd',
       '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
@@ -28,11 +31,11 @@ const input: TokenInput = {
       '#166534', '#14532d',
     ],
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'] },
     dark:  { ramp: 'neutral', step: 8, fallback: ['white'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgError: {
       ramp: 'red',

@@ -14,14 +14,14 @@ const tokensInput: TokenInput = {
     orange:  ['#fff7ed', '#ffedd5', '#fed7aa', '#fdba74', '#fb923c', '#f97316', '#ea580c', '#c2410c', '#9a3412', '#7c2d12'],
     green:   ['#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d'],
   },
-  backgrounds: {
+  themes: {
     white:   { ramp: 'neutral', step: 0, fallback: ['light', 'card'] },
     light:   { ramp: 'neutral', step: 1, fallback: ['white', 'card'] },
     card:    { ramp: 'neutral', step: 2, fallback: ['light', 'white'] },
     dark:    { ramp: 'neutral', step: 8, fallback: ['inverse'] },
     inverse: { ramp: 'neutral', step: 9, fallback: ['dark'] },
   },
-  semantics: {
+  foreground: {
     fgPrimary:   { ramp: 'neutral', defaultStep: 8 },
     fgSecondary: { ramp: 'neutral', defaultStep: 5 },
     fgAccent:    { ramp: 'blue',    defaultStep: 6 },

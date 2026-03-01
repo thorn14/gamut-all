@@ -2,28 +2,34 @@ import { describe, it, expect } from 'vitest';
 import { buildRegistry, validateRegistry } from '../registry.js';
 import { processInput } from '../processor.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { hexToColorValue } from '../utils/oklch.js';
 import type { TokenInput } from '../types.js';
 
+const cv = (hex: string) => hexToColorValue(hex);
+
 const baseInput: TokenInput = {
+  config: {
+    stacks: { root: 0, card: 1, popover: 2, tooltip: 2, modal: 2, overlay: 3 },
+  },
   primitives: {
     neutral: [
       '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
       '#a3a3a3', '#737373', '#525252', '#404040',
       '#262626', '#171717',
-    ],
+    ].map(cv),
     blue: [
       '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd',
       '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
       '#1e40af', '#1e3a8a',
-    ],
+    ].map(cv),
   },
-  backgrounds: {
+  themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['light'] },
     light: { ramp: 'neutral', step: 1 },
     dark: { ramp: 'neutral', step: 8, fallback: ['inverse'] },
     inverse: { ramp: 'neutral', step: 9 },
   },
-  semantics: {
+  foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
       ramp: 'blue',
@@ -53,9 +59,9 @@ describe('buildRegistry', () => {
     expect(registry.defaults['fgLink-active']).toBe('#1e3a8a');
   });
 
-  it('populates backgroundFallbacks', () => {
-    expect(registry.backgroundFallbacks['white']).toEqual(['light']);
-    expect(registry.backgroundFallbacks['dark']).toEqual(['inverse']);
+  it('populates themeFallbacks', () => {
+    expect(registry.themeFallbacks['white']).toEqual(['light']);
+    expect(registry.themeFallbacks['dark']).toEqual(['inverse']);
   });
 
   it('has meta with expected fields', () => {
@@ -73,7 +79,7 @@ describe('buildRegistry', () => {
     for (const key of registry.variantMap.keys()) {
       if (key.startsWith('fgPrimary__') && key.endsWith('__default')) count++;
     }
-    expect(count).toBe(4 * 6 * 6); // 4 backgrounds × 6 font sizes × 6 stacks
+    expect(count).toBe(4 * 6 * 6); // 4 themes × 6 font sizes × 6 stacks
   });
 
   it('generates interaction token variants', () => {
@@ -107,7 +113,7 @@ describe('validateRegistry', () => {
     // override that forces a step known to fail — simulating intentional designer deviation.
     const inputWithBadOverride: TokenInput = {
       ...baseInput,
-      semantics: {
+      foreground: {
         fgPrimary: {
           ramp: 'neutral',
           defaultStep: 8,

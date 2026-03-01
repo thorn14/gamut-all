@@ -101,6 +101,39 @@ describe('wcag21.evaluate', () => {
   });
 });
 
+describe('wcag21.evaluate — ui-component target (SC 1.4.11)', () => {
+  const uiCtx = (level: 'AA' | 'AAA' = 'AA') => ({
+    fontSizePx: 16,
+    fontWeight: 400,
+    target: 'ui-component' as const,
+    level,
+  });
+
+  it('AA requires 3:1 regardless of font size', () => {
+    const result = wcag21.evaluate('#000000', '#ffffff', uiCtx('AA'));
+    expect(result.required).toBe(3);
+  });
+
+  it('#909090 on white (~3.2:1) passes AA ui-component but not AA text', () => {
+    // #909090 ≈ 3.2:1 on white — passes 3:1 but not 4.5:1
+    const uiResult = wcag21.evaluate('#909090', '#ffffff', uiCtx('AA'));
+    const textResult = wcag21.evaluate('#909090', '#ffffff', { fontSizePx: 16, fontWeight: 400, target: 'text', level: 'AA' });
+    expect(uiResult.pass).toBe(true);
+    expect(textResult.pass).toBe(false);
+  });
+
+  it('AAA ui-component requires 4.5:1', () => {
+    const result = wcag21.evaluate('#000000', '#ffffff', uiCtx('AAA'));
+    expect(result.required).toBe(4.5);
+  });
+
+  it('ui-component threshold is size-independent: 12px same as 32px', () => {
+    const r12 = wcag21.evaluate('#767676', '#ffffff', { fontSizePx: 12, fontWeight: 400, target: 'ui-component', level: 'AA' });
+    const r32 = wcag21.evaluate('#767676', '#ffffff', { fontSizePx: 32, fontWeight: 400, target: 'ui-component', level: 'AA' });
+    expect(r12.required).toBe(r32.required);
+  });
+});
+
 describe('wcag21.preferredDirection', () => {
   it('light background → darker', () => {
     expect(wcag21.preferredDirection?.('#ffffff')).toBe('darker');

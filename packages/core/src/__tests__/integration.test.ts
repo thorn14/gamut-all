@@ -6,7 +6,7 @@ import type { TokenInput, DesignContext } from '../types.js';
 // Load fixture
 import tokensJson from './fixtures/tokens.json' with { type: 'json' };
 
-const input = tokensJson as TokenInput;
+const input = tokensJson as unknown as TokenInput;
 const processed = processInput(input);
 const registry = buildRegistry(processed, wcag21);
 
@@ -18,19 +18,19 @@ const ctx = (overrides: Partial<DesignContext> = {}): DesignContext => ({
   ...overrides,
 });
 
-const backgrounds = ['white', 'light', 'card', 'dark', 'inverse'] as const;
+const themes = ['white', 'light', 'card', 'dark', 'inverse'] as const;
 const tokens9 = ['fgPrimary', 'fgSecondary', 'fgTertiary', 'fgAccent', 'fgDisabled', 'fgInverse', 'fgLink', 'fgError', 'fgSuccess'];
 
 describe('Integration: full pipeline', () => {
   it('processes the fixture without errors', () => {
     expect(processed.ramps.size).toBe(5);
-    expect(processed.backgrounds.size).toBe(5);
+    expect(processed.themes.size).toBe(5);
     expect(processed.semantics.size).toBe(9);
   });
 
-  it('all 9 tokens resolve on all 5 backgrounds', () => {
+  it('all 9 tokens resolve on all 5 themes', () => {
     for (const token of tokens9) {
-      for (const bg of backgrounds) {
+      for (const bg of themes) {
         const hex = resolveToken(token, ctx({ bgClass: bg }), registry);
         expect(hex, `${token} on ${bg}`).toMatch(/^#[0-9a-fA-F]{3,6}$/);
       }
@@ -94,7 +94,7 @@ describe('Integration: full pipeline', () => {
     const restored = deserializeRegistry(serialized);
 
     for (const token of tokens9) {
-      for (const bg of backgrounds) {
+      for (const bg of themes) {
         const original = resolveToken(token, ctx({ bgClass: bg }), registry);
         const fromRestored = resolveToken(token, ctx({ bgClass: bg }), restored);
         expect(fromRestored, `${token} on ${bg}`).toBe(original);
@@ -105,12 +105,12 @@ describe('Integration: full pipeline', () => {
   it('generateCSS contains correct selectors', () => {
     const css = generateCSS(registry);
     expect(css).toContain(':root {');
-    expect(css).toContain('[data-bg="dark"]');
+    expect(css).toContain('[data-theme="dark"]');
     // Vision mode — descendant combinator
     expect(css).toContain('[data-vision="deuteranopia"]');
     // Descendant (space) not compound (no space)
-    const visionBgIdx = css.indexOf('[data-vision="deuteranopia"] [data-bg=');
-    const visionBgCompIdx = css.indexOf('[data-vision="deuteranopia"][data-bg=');
+    const visionBgIdx = css.indexOf('[data-vision="deuteranopia"] [data-theme=');
+    const visionBgCompIdx = css.indexOf('[data-vision="deuteranopia"][data-theme=');
     if (visionBgIdx !== -1 || visionBgCompIdx !== -1) {
       expect(visionBgIdx).toBeGreaterThan(-1);
       expect(visionBgCompIdx).toBe(-1);
