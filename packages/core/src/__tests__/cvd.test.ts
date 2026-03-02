@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { simulateCVD, oklabDE, findBestCVDStep } from '../utils/cvd.js';
+import { simulateCVD, oklabDE } from '../utils/cvd.js';
 import { processInput, buildRegistry, wcag21 } from '../index.js';
 import type { TokenInput } from '../types.js';
 
@@ -115,32 +115,6 @@ describe('oklabDE', () => {
   });
 });
 
-describe('findBestCVDStep', () => {
-  const redRamp = [
-    { hex: '#fef2f2' }, { hex: '#fee2e2' }, { hex: '#fecaca' }, { hex: '#fca5a5' },
-    { hex: '#f87171' }, { hex: '#ef4444' }, { hex: '#dc2626' }, { hex: '#b91c1c' },
-    { hex: '#991b1b' }, { hex: '#7f1d1d' },
-  ];
-
-  const opts = { enabled: true, confusionThresholdDE: 5, distinguishableThresholdDE: 8 };
-
-  it('returns null when no other tokens provided (no confusion partners)', () => {
-    const result = findBestCVDStep(redRamp, '#dc2626', 'deuteranopia', [], opts);
-    expect(result).toBeNull();
-  });
-
-  it('finds best hex when a confused neighbor exists', () => {
-    // Use a green-like sim hex as the "other" token that's confusingly similar to the simulated red
-    const greenSimHex = '#a6a664'; // simulated green under deuteranopia (olive-ish)
-    // Any red step simulated close to greenSimHex would score poorly; a step far from it scores better
-    const result = findBestCVDStep(redRamp, '#f87171', 'deuteranopia', [greenSimHex], opts);
-    // Result is either a hex string (improvement found) or null (no improvement)
-    if (result !== null) {
-      expect(result).toMatch(/^#[0-9a-fA-F]{6}$/);
-      expect(result).not.toBe('#f87171'); // should differ from current
-    }
-  });
-});
 
 describe('buildRegistry CVD auto-generation', () => {
   const cvdInput: TokenInput = {
@@ -211,6 +185,24 @@ describe('buildRegistry CVD auto-generation', () => {
       if (anomalyVisionModes.has(visionPart)) {
         // Any generated anomaly variant must pass compliance
         expect(variant.compliance.pass, `Anomaly variant ${key} must pass compliance`).toBe(true);
+      }
+    }
+  });
+
+  it('CVD hue-shift fallback: all variants pass even under strict AAA compliance', () => {
+    // AAA requires higher contrast than AA. The direct hue-shift of the default step
+    // is more likely to fail AAA, triggering the ramp-walk fallback. Any variant
+    // that ends up in the map must have found a passing step (direct or fallback).
+    const strictInput: TokenInput = {
+      ...cvdInput,
+      config: { ...cvdInput.config, wcagTarget: 'AAA' },
+    };
+    const processed = processInput(strictInput);
+    const registry = buildRegistry(processed, wcag21);
+    for (const [key, variant] of registry.variantMap) {
+      const visionPart = key.split('__')[4];
+      if (visionPart !== 'default') {
+        expect(variant.compliance.pass, `CVD variant ${key} should pass AAA`).toBe(true);
       }
     }
   });

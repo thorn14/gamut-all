@@ -27,6 +27,15 @@
           "properties": {
             "root": { "type": "integer", "const": 0 }
           }
+        },
+        "cvd": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled":                   { "type": "boolean" },
+            "confusionThresholdDE":      { "type": "number", "exclusiveMinimum": 0 },
+            "distinguishableThresholdDE":{ "type": "number", "exclusiveMinimum": 0 }
+          }
         }
       }
     },
@@ -146,21 +155,6 @@
             }
           }
         },
-        "vision": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "ramp":        { "type": "string" },
-              "defaultStep": { "type": "integer", "minimum": 0 },
-              "overrides": {
-                "type": "array",
-                "items": { "$ref": "#/$defs/ContextOverrideInput" }
-              }
-            }
-          }
-        }
       }
     },
     "W3CAnnotations": {

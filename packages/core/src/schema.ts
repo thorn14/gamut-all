@@ -201,6 +201,10 @@ export function validateSchema(input: unknown): SchemaValidationResult {
         errors.push(`${sectionName}.${tokenName}.decorative must be a boolean`);
       }
 
+      if (sem['vision'] !== undefined) {
+        errors.push(`${sectionName}.${tokenName}.vision is no longer supported — CVD variants are generated automatically. Remove this field.`);
+      }
+
       if (typeof sem['ramp'] !== 'string') {
         errors.push(`${sectionName}.${tokenName}.ramp must be a string`);
       } else {
@@ -306,6 +310,23 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           errors.push('config.stepSelectionStrategy must be a string');
         } else if (config['stepSelectionStrategy'] !== 'closest' && config['stepSelectionStrategy'] !== 'mirror-closest') {
           errors.push('config.stepSelectionStrategy must be one of: closest, mirror-closest');
+        }
+      }
+
+      if (config['cvd'] !== undefined) {
+        if (typeof config['cvd'] !== 'object' || config['cvd'] === null || Array.isArray(config['cvd'])) {
+          errors.push('config.cvd must be an object');
+        } else {
+          const cvd = config['cvd'] as Record<string, unknown>;
+          if (cvd['enabled'] !== undefined && typeof cvd['enabled'] !== 'boolean') {
+            errors.push('config.cvd.enabled must be a boolean');
+          }
+          if (cvd['confusionThresholdDE'] !== undefined && (typeof cvd['confusionThresholdDE'] !== 'number' || cvd['confusionThresholdDE'] <= 0)) {
+            errors.push('config.cvd.confusionThresholdDE must be a positive number');
+          }
+          if (cvd['distinguishableThresholdDE'] !== undefined && (typeof cvd['distinguishableThresholdDE'] !== 'number' || cvd['distinguishableThresholdDE'] <= 0)) {
+            errors.push('config.cvd.distinguishableThresholdDE must be a positive number');
+          }
         }
       }
     }

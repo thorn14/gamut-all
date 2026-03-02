@@ -146,7 +146,6 @@ function autoCVDVariants(
     'protanopia', 'protanomaly',
     'deuteranopia', 'deuteranomaly',
     'tritanopia', 'tritanomaly',
-    'achromatopsia', 'blueConeMonochromacy',
   ];
   const tokenNames = Array.from(processed.semantics.keys());
 
@@ -243,19 +242,45 @@ function autoCVDVariants(
             const shiftedHex = shiftHueToTarget(currentHex, targetHue);
             if (shiftedHex === currentHex) continue; // Negligible change — skip.
 
-            const complianceResult = compliance.evaluate(shiftedHex, surface.hex, {
+            const ctx = {
               fontSizePx: parseInt(fontSize, 10),
               fontWeight: 400,
               target: semantic.complianceTarget,
               level: processed.config.wcagTarget,
-            });
-            if (!complianceResult.pass) continue; // Skip non-compliant shifted colors.
+            };
+
+            let finalHex = shiftedHex;
+            let finalStep = defaultVariant.step;
+            let complianceResult = compliance.evaluate(shiftedHex, surface.hex, ctx);
+
+            if (!complianceResult.pass) {
+              // Fallback: walk ramp steps outward from the default step, shift each to
+              // the target hue, and use the first whose shifted version passes compliance.
+              let found = false;
+              for (let dist = 1; dist < semantic.ramp.steps.length && !found; dist++) {
+                for (const idx of [defaultVariant.step + dist, defaultVariant.step - dist]) {
+                  if (idx < 0 || idx >= semantic.ramp.steps.length) continue;
+                  const stepHex = semantic.ramp.steps[idx]?.hex;
+                  if (!stepHex) continue;
+                  const candidate = shiftHueToTarget(stepHex, targetHue);
+                  const result = compliance.evaluate(candidate, surface.hex, ctx);
+                  if (result.pass) {
+                    finalHex = candidate;
+                    finalStep = idx;
+                    complianceResult = result;
+                    found = true;
+                    break;
+                  }
+                }
+              }
+              if (!found) continue;
+            }
 
             const cvdKey = makeKey(tokenName, fontSize, bgName, stackName, visionMode);
             variantMap.set(cvdKey, {
-              ramp: semantic.ramp.name,   // original ramp (informational)
-              step: defaultVariant.step,  // original step (informational)
-              hex: shiftedHex,
+              ramp: semantic.ramp.name,
+              step: finalStep,
+              hex: finalHex,
               compliance: complianceResult,
             });
           }

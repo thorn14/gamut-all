@@ -12,7 +12,7 @@ Most token systems are hand-curated for every single state, with every possible 
 
 - **Themes** — `data-theme="light"` / `"dark"` / any named theme switches the full token set automatically
 - **Elevation** — `data-stack="card"` / `"modal"` / `"tooltip"` shifts the surface one or more ramp steps and re-resolves every token against the new surface, no `data-theme` override needed
-- **Vision modes** — `data-vision="deuteranopia"` swaps tokens that declare alternate ramps or uses automated CVD simulation to find distinguishable passing steps
+- **Vision modes** — `data-vision="protanopia"` swaps tokens that declare alternate ramps or uses automated CVD simulation to find distinguishable passing steps
 - **Compliance** — WCAG 2.1 or APCA; AA or AAA; verified at build time with a CLI coverage report showing exactly which ramp steps pass on which surfaces
 - **Contextual Overrides** — Surgical overrides for specific backgrounds, font sizes, or stack levels when auto-resolution needs a hint
 

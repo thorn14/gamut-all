@@ -110,6 +110,55 @@ describe('processInput', () => {
     expect(() => processInput(bad)).toThrow();
   });
 
+  it('assigns complianceTarget "text" for foreground tokens', () => {
+    const result = processInput(minimalInput);
+    const fg = result.semantics.get('fgPrimary');
+    expect(fg!.complianceTarget).toBe('text');
+  });
+
+  it('assigns complianceTarget "ui-component" for nonText tokens', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      nonText: {
+        borderMuted: { ramp: 'neutral', defaultStep: 3 },
+      },
+    };
+    const result = processInput(input);
+    expect(result.semantics.get('borderMuted')!.complianceTarget).toBe('ui-component');
+  });
+
+  it('assigns complianceTarget "decorative" when decorative: true', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      foreground: {
+        fgDecor: { ramp: 'neutral', defaultStep: 3, decorative: true },
+      },
+    };
+    const result = processInput(input);
+    expect(result.semantics.get('fgDecor')!.complianceTarget).toBe('decorative');
+  });
+
+  it('auto-selects ramp midpoint when defaultStep is omitted', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      foreground: {
+        fgAuto: { ramp: 'neutral' }, // 10-step ramp → midpoint = Math.floor(10/2) = 5
+      },
+    };
+    const result = processInput(input);
+    expect(result.semantics.get('fgAuto')!.defaultStep).toBe(5);
+  });
+
+  it('throws on duplicate token name across foreground and nonText', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      nonText: {
+        fgPrimary: { ramp: 'neutral', defaultStep: 3 }, // same name as in foreground
+      },
+    };
+    expect(() => processInput(input)).toThrow(/fgPrimary/);
+  });
+
   it('processes interactions', () => {
     const input: TokenInput = {
       ...minimalInput,
