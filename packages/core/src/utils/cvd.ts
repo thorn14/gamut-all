@@ -159,10 +159,15 @@ export function oklabHueDE(hexA: string, hexB: string): number {
  * Rotate the hue of a color to `targetHue` degrees in OKLCH space,
  * preserving the original perceived lightness (L) and using the maximum
  * in-gamut chroma at that L + targetHue via binary-search gamut clipping.
+ *
+ * `chromaScale` (default 1.0) multiplies the chroma cap before gamut-clipping.
+ * Values < 1.0 produce a more muted result — used when hue space is exhausted
+ * and overflow ramps need differentiation along the saturation axis instead.
  */
-export function shiftHueToTarget(hex: string, targetHue: number): string {
+export function shiftHueToTarget(hex: string, targetHue: number, chromaScale = 1.0): string {
   const { l, c } = hexToOklch(hex);
   const hRad = targetHue * (Math.PI / 180);
+  const maxC = c * Math.max(0, Math.min(1, chromaScale));
 
   const tryChroma = (chroma: number): [number, number, number] | null => {
     const a = chroma * Math.cos(hRad);
@@ -180,12 +185,12 @@ export function shiftHueToTarget(hex: string, targetHue: number): string {
     return null;
   };
 
-  // Fast path: original chroma is in gamut at the new hue.
-  const full = tryChroma(c);
+  // Fast path: scaled chroma is in gamut at the new hue.
+  const full = tryChroma(maxC);
   if (full !== null) return toHex8(full[0], full[1], full[2]);
 
   // Binary search for max in-gamut chroma at this L+hue (16 iters ≈ 1/65536 precision).
-  let lo = 0, hi = c;
+  let lo = 0, hi = maxC;
   for (let i = 0; i < 16; i++) {
     const mid = (lo + hi) / 2;
     if (tryChroma(mid) !== null) lo = mid; else hi = mid;

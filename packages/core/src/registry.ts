@@ -94,36 +94,41 @@ function buildVariantsForToken(
 // Neutral ramps should not substitute for semantic color tokens under CVD correction.
 const CHROMA_MIN = 0.05;
 
-type HueBand = { sourceRanges: Array<[number, number]>; targetHue: number };
+// Minimum angular gap (degrees) between two hue-spread targets in the same band.
+// Below this gap the hues become perceptually indistinguishable for typical chroma values.
+// Ramps that would need a smaller gap are "overflow" and get chroma reduction instead.
+const MIN_HUE_GAP_DEG = 20;
 
-// Per CVD type: which source hue bands are confused, and which target hue to shift to.
+type HueBand = { sourceRanges: Array<[number, number]>; targetRange: [number, number] };
+
+// Per CVD type: which source hue bands are confused, and which safe target range to shift into.
 // Hue angles are OKLCH (degrees, 0–360). Ranges are [min, max) and may wrap around 360°.
-// Tokens on ramps outside all source bands are NOT corrected for that CVD type.
-// bandA and bandB map to different target hues, ensuring confused pairs always diverge.
+// When multiple ramps fall into the same band, their target hues are spread proportionally
+// across targetRange (sorted by original median hue) so they remain distinguishable.
 const CVD_HUE_POLICY: Partial<Record<CVDType, { bandA: HueBand; bandB: HueBand }>> = {
   protanopia: {
-    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },  // red/warm  → blue
-    bandB: { sourceRanges: [[90, 200]],             targetHue: 315 },  // green/teal → violet
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetRange: [230, 270] },  // red/warm  → blue zone
+    bandB: { sourceRanges: [[90, 200]],             targetRange: [295, 335] },  // green/teal → violet zone
   },
   protanomaly: {
-    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },
-    bandB: { sourceRanges: [[90, 200]],             targetHue: 315 },
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetRange: [230, 270] },
+    bandB: { sourceRanges: [[90, 200]],             targetRange: [295, 335] },
   },
   deuteranopia: {
-    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },
-    bandB: { sourceRanges: [[90, 200]],            targetHue: 315 },
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetRange: [230, 270] },
+    bandB: { sourceRanges: [[90, 200]],            targetRange: [295, 335] },
   },
   deuteranomaly: {
-    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetHue: 250 },
-    bandB: { sourceRanges: [[90, 200]],            targetHue: 315 },
+    bandA: { sourceRanges: [[330, 360], [0, 90]],  targetRange: [230, 270] },
+    bandB: { sourceRanges: [[90, 200]],            targetRange: [295, 335] },
   },
   tritanopia: {
-    bandA: { sourceRanges: [[60, 110]],   targetHue: 30  },  // yellow/amber → orange/red
-    bandB: { sourceRanges: [[190, 270]],  targetHue: 300 },  // blue/cyan    → violet
+    bandA: { sourceRanges: [[60, 110]],   targetRange: [15,  45]  },  // yellow/amber → orange/red zone
+    bandB: { sourceRanges: [[190, 270]],  targetRange: [280, 320] },  // blue/cyan    → violet zone
   },
   tritanomaly: {
-    bandA: { sourceRanges: [[60, 110]],   targetHue: 30  },
-    bandB: { sourceRanges: [[190, 270]],  targetHue: 300 },
+    bandA: { sourceRanges: [[60, 110]],   targetRange: [15,  45]  },
+    bandB: { sourceRanges: [[190, 270]],  targetRange: [280, 320] },
   },
   // achromatopsia / blueConeMonochromacy: omitted — no hue fix meaningful for grayscale vision.
 };
@@ -209,37 +214,72 @@ function autoCVDVariants(
 
           if (confused.size === 0) continue;
 
-          // 4. Hue-shift substitution: rotate each confused token's hue to the target angle
-          //    for its confusion band, preserving L and C.
-          //    Tokens not in any band (e.g. blue under deuteranopia) are skipped.
+          // 4. Determine which ramps are affected by confusion in this context.
+          //    Any ramp that has at least one confused token in a source hue band is "affected".
+          //    We then shift ALL tokens on an affected ramp — not just the confused ones —
+          //    so that borderSuccess and fgSuccess shift together when emerald is affected.
+          const policy = CVD_HUE_POLICY[cvdType];
+          if (!policy) continue; // achromatopsia — no hue fix available
+
+          // Collect which ramps belong to bandA vs bandB (keyed by band label).
+          const bandRamps: { A: string[]; B: string[] } = { A: [], B: [] };
           for (const tokenName of confused) {
             const semantic = processed.semantics.get(tokenName)!;
-
-            // Guard: neutral/gray ramps have ill-defined hue — skip them.
             if (!chromaticRamps.has(semantic.ramp.name)) continue;
+            const sourceHue = rampMedianHues.get(semantic.ramp.name);
+            if (sourceHue === undefined) continue;
+            if (hueInRanges(sourceHue, policy.bandA.sourceRanges) && !bandRamps.A.includes(semantic.ramp.name)) {
+              bandRamps.A.push(semantic.ramp.name);
+            } else if (hueInRanges(sourceHue, policy.bandB.sourceRanges) && !bandRamps.B.includes(semantic.ramp.name)) {
+              bandRamps.B.push(semantic.ramp.name);
+            }
+          }
+
+          // Spread target hues proportionally across the band's targetRange, sorted by
+          // original median hue so relative hue order is preserved after shifting.
+          // One ramp → center of range. N ramps → evenly distributed across the range.
+          //
+          // Overflow: the range has finite capacity — floor((hi-lo)/MIN_HUE_GAP_DEG)+1 slots.
+          // Ramps beyond that capacity get the same hue as the nearest boundary ramp but
+          // with progressively reduced chroma (−25% per overflow rank), differentiating them
+          // along the saturation axis instead of the hue axis.
+          const affectedRamps = new Map<string, { targetHue: number; chromaScale: number }>();
+          for (const [ramps, band] of [[bandRamps.A, policy.bandA], [bandRamps.B, policy.bandB]] as const) {
+            if (ramps.length === 0) continue;
+            const [lo, hi] = band.targetRange;
+            const sorted = [...ramps].sort((a, b) => (rampMedianHues.get(a) ?? 0) - (rampMedianHues.get(b) ?? 0));
+            const maxByHue = Math.floor((hi - lo) / MIN_HUE_GAP_DEG) + 1;
+            const hueCount = Math.min(sorted.length, maxByHue);
+            for (let i = 0; i < hueCount; i++) {
+              const frac = hueCount === 1 ? 0.5 : i / (hueCount - 1);
+              affectedRamps.set(sorted[i]!, { targetHue: lo + frac * (hi - lo), chromaScale: 1.0 });
+            }
+            // Overflow ramps: pin to the nearest boundary hue, reduce chroma by 25% per rank.
+            for (let i = hueCount; i < sorted.length; i++) {
+              const overflowRank = i - hueCount + 1;
+              const boundaryHue = sorted[i]! > sorted[hueCount - 1]! ? hi : lo;
+              affectedRamps.set(sorted[i]!, { targetHue: boundaryHue, chromaScale: 1.0 - overflowRank * 0.25 });
+            }
+          }
+
+          if (affectedRamps.size === 0) continue;
+
+          // Shift ALL tokens whose ramp is affected (not just the confused subset).
+          for (const tokenName of tokenNames) {
+            const semantic = processed.semantics.get(tokenName)!;
+
+            // Only process tokens on a ramp that was identified as affected.
+            const rampTarget = affectedRamps.get(semantic.ramp.name);
+            if (rampTarget === undefined) continue;
+            const { targetHue, chromaScale } = rampTarget;
 
             const defaultKey = makeKey(tokenName, fontSize, bgName, stackName, 'default');
             const defaultVariant = variantMap.get(defaultKey);
             if (!defaultVariant) continue;
             const currentHex = defaultVariant.hex;
 
-            const policy = CVD_HUE_POLICY[cvdType];
-            if (!policy) continue; // achromatopsia — no hue fix available
-
-            const sourceHue = rampMedianHues.get(semantic.ramp.name);
-            if (sourceHue === undefined) continue;
-
-            let targetHue: number;
-            if (hueInRanges(sourceHue, policy.bandA.sourceRanges)) {
-              targetHue = policy.bandA.targetHue;
-            } else if (hueInRanges(sourceHue, policy.bandB.sourceRanges)) {
-              targetHue = policy.bandB.targetHue;
-            } else {
-              continue; // Not in any confusion source band for this CVD type — skip.
-            }
-
-            // Shift hue to target while preserving L and C.
-            const shiftedHex = shiftHueToTarget(currentHex, targetHue);
+            // Shift hue to target. Overflow ramps also reduce chroma for distinguishability.
+            const shiftedHex = shiftHueToTarget(currentHex, targetHue, chromaScale);
             if (shiftedHex === currentHex) continue; // Negligible change — skip.
 
             const ctx = {
