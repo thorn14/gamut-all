@@ -37,10 +37,10 @@ const tokensInput: TokenInput = {
     fgError: {
       ramp: 'red',
       defaultStep: 6,
-      vision: {
-        deuteranopia: { ramp: 'orange', defaultStep: 7 },
-        protanopia:   { ramp: 'orange', defaultStep: 7 },
-      },
+    },
+    fgSuccess: {
+      ramp: 'green',
+      defaultStep: 6,
     },
   },
 };

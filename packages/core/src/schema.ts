@@ -131,57 +131,6 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           }
         }
       }
-
-      if (bg['tone'] !== undefined) {
-        if (typeof bg['tone'] !== 'object' || bg['tone'] === null || Array.isArray(bg['tone'])) {
-          errors.push(`themes.${bgName}.tone must be an object`);
-        } else {
-          const tone = bg['tone'] as Record<string, unknown>;
-          for (const [toneMode, toneVal] of Object.entries(tone)) {
-            if (typeof toneVal !== 'object' || toneVal === null || Array.isArray(toneVal)) {
-              errors.push(`themes.${bgName}.tone.${toneMode} must be an object`);
-              continue;
-            }
-            const t = toneVal as Record<string, unknown>;
-
-            let toneRampSteps: unknown[] | undefined;
-            if (t['ramp'] !== undefined) {
-              if (typeof t['ramp'] !== 'string') {
-                errors.push(`themes.${bgName}.tone.${toneMode}.ramp must be a string`);
-              } else {
-                const toneRamp = primitives[t['ramp']];
-                if (!toneRamp) {
-                  errors.push(`themes.${bgName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
-                } else if (Array.isArray(toneRamp)) {
-                  toneRampSteps = toneRamp;
-                }
-              }
-            }
-
-            if (t['step'] !== undefined) {
-              const steps = toneRampSteps ?? (
-                typeof bg['ramp'] === 'string' && Array.isArray(primitives[bg['ramp']])
-                  ? primitives[bg['ramp']] as unknown[]
-                  : []
-              );
-              if (typeof t['step'] !== 'number' || !Number.isInteger(t['step']) || t['step'] < 0 || t['step'] >= steps.length) {
-                errors.push(`themes.${bgName}.tone.${toneMode}.step ${String(t['step'])} is out of bounds`);
-              }
-            }
-
-            if (t['fallback'] !== undefined) {
-              if (!Array.isArray(t['fallback']) || t['fallback'].some(v => typeof v !== 'string')) {
-                errors.push(`themes.${bgName}.tone.${toneMode}.fallback must be an array of strings`);
-              }
-            }
-            if (t['aliases'] !== undefined) {
-              if (!Array.isArray(t['aliases']) || t['aliases'].some(v => typeof v !== 'string')) {
-                errors.push(`themes.${bgName}.tone.${toneMode}.aliases must be an array of strings`);
-              }
-            }
-          }
-        }
-      }
     }
   }
 
@@ -252,6 +201,10 @@ export function validateSchema(input: unknown): SchemaValidationResult {
         errors.push(`${sectionName}.${tokenName}.decorative must be a boolean`);
       }
 
+      if (sem['vision'] !== undefined) {
+        errors.push(`${sectionName}.${tokenName}.vision is no longer supported — CVD variants are generated automatically. Remove this field.`);
+      }
+
       if (typeof sem['ramp'] !== 'string') {
         errors.push(`${sectionName}.${tokenName}.ramp must be a string`);
       } else {
@@ -274,58 +227,6 @@ export function validateSchema(input: unknown): SchemaValidationResult {
               sem['overrides'].forEach((ov: unknown, i: number) => {
                 validateOverride(ov, `${sectionName}.${tokenName}.overrides[${i}]`, rampSteps.length, themes, errors);
               });
-            }
-          }
-
-          // tone
-          if (sem['tone'] !== undefined) {
-            if (typeof sem['tone'] !== 'object' || sem['tone'] === null || Array.isArray(sem['tone'])) {
-              errors.push(`${sectionName}.${tokenName}.tone must be an object`);
-            } else {
-              const tone = sem['tone'] as Record<string, unknown>;
-              for (const [toneMode, toneVal] of Object.entries(tone)) {
-                if (typeof toneVal !== 'object' || toneVal === null || Array.isArray(toneVal)) {
-                  errors.push(`${sectionName}.${tokenName}.tone.${toneMode} must be an object`);
-                  continue;
-                }
-                const t = toneVal as Record<string, unknown>;
-
-                let toneRampSteps: unknown[] = rampSteps;
-                if (t['ramp'] !== undefined) {
-                  if (typeof t['ramp'] !== 'string') {
-                    errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.ramp must be a string`);
-                  } else {
-                    const toneRamp = primitives[t['ramp']];
-                    if (!toneRamp) {
-                      errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.ramp references unknown ramp "${t['ramp']}"`);
-                    } else if (Array.isArray(toneRamp)) {
-                      toneRampSteps = toneRamp;
-                    }
-                  }
-                }
-
-                if (t['defaultStep'] !== undefined) {
-                  if (typeof t['defaultStep'] !== 'number' || !Number.isInteger(t['defaultStep']) || t['defaultStep'] < 0 || t['defaultStep'] >= toneRampSteps.length) {
-                    errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.defaultStep ${String(t['defaultStep'])} is out of bounds`);
-                  }
-                }
-
-                if (t['overrides'] !== undefined) {
-                  if (!Array.isArray(t['overrides'])) {
-                    errors.push(`${sectionName}.${tokenName}.tone.${toneMode}.overrides must be an array`);
-                  } else {
-                    t['overrides'].forEach((ov: unknown, i: number) => {
-                      validateOverride(
-                        ov,
-                        `${sectionName}.${tokenName}.tone.${toneMode}.overrides[${i}]`,
-                        toneRampSteps.length,
-                        themes,
-                        errors,
-                      );
-                    });
-                  }
-                }
-              }
             }
           }
 
@@ -353,39 +254,6 @@ export function validateSchema(input: unknown): SchemaValidationResult {
             }
           }
 
-          // vision
-          if (sem['vision'] !== undefined) {
-            if (typeof sem['vision'] !== 'object' || sem['vision'] === null || Array.isArray(sem['vision'])) {
-              errors.push(`${sectionName}.${tokenName}.vision must be an object`);
-            } else {
-              const vision = sem['vision'] as Record<string, unknown>;
-              for (const [visionMode, visionVal] of Object.entries(vision)) {
-                if (typeof visionVal !== 'object' || visionVal === null || Array.isArray(visionVal)) {
-                  errors.push(`${sectionName}.${tokenName}.vision.${visionMode} must be an object`);
-                  continue;
-                }
-                const v = visionVal as Record<string, unknown>;
-                let visionRampSteps: unknown[] = rampSteps;
-                if (v['ramp'] !== undefined) {
-                  if (typeof v['ramp'] !== 'string') {
-                    errors.push(`${sectionName}.${tokenName}.vision.${visionMode}.ramp must be a string`);
-                  } else {
-                    const vRamp = primitives[v['ramp']];
-                    if (!vRamp) {
-                      errors.push(`${sectionName}.${tokenName}.vision.${visionMode}.ramp references unknown ramp "${v['ramp']}"`);
-                    } else if (Array.isArray(vRamp)) {
-                      visionRampSteps = vRamp;
-                    }
-                  }
-                }
-                if (v['defaultStep'] !== undefined) {
-                  if (typeof v['defaultStep'] !== 'number' || !Number.isInteger(v['defaultStep']) || v['defaultStep'] < 0 || v['defaultStep'] >= visionRampSteps.length) {
-                    errors.push(`${sectionName}.${tokenName}.vision.${visionMode}.defaultStep ${String(v['defaultStep'])} is out of bounds`);
-                  }
-                }
-              }
-            }
-          }
         }
       }
     }
@@ -442,6 +310,23 @@ export function validateSchema(input: unknown): SchemaValidationResult {
           errors.push('config.stepSelectionStrategy must be a string');
         } else if (config['stepSelectionStrategy'] !== 'closest' && config['stepSelectionStrategy'] !== 'mirror-closest') {
           errors.push('config.stepSelectionStrategy must be one of: closest, mirror-closest');
+        }
+      }
+
+      if (config['cvd'] !== undefined) {
+        if (typeof config['cvd'] !== 'object' || config['cvd'] === null || Array.isArray(config['cvd'])) {
+          errors.push('config.cvd must be an object');
+        } else {
+          const cvd = config['cvd'] as Record<string, unknown>;
+          if (cvd['enabled'] !== undefined && typeof cvd['enabled'] !== 'boolean') {
+            errors.push('config.cvd.enabled must be a boolean');
+          }
+          if (cvd['confusionThresholdDE'] !== undefined && (typeof cvd['confusionThresholdDE'] !== 'number' || cvd['confusionThresholdDE'] <= 0)) {
+            errors.push('config.cvd.confusionThresholdDE must be a positive number');
+          }
+          if (cvd['distinguishableThresholdDE'] !== undefined && (typeof cvd['distinguishableThresholdDE'] !== 'number' || cvd['distinguishableThresholdDE'] <= 0)) {
+            errors.push('config.cvd.distinguishableThresholdDE must be a positive number');
+          }
         }
       }
     }

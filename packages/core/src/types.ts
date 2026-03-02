@@ -1,8 +1,16 @@
+import type { CVDOptions } from './utils/cvd.js';
+export type { CVDOptions };
+
 // ── Fixed dimension types ────────────────────────────────────────────────────
 
 export type FontSizeClass = '12px' | '14px' | '16px' | '20px' | '24px' | '32px';
 export type StackClass = string;
-export type VisionMode = 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'achromatopsia';
+export type VisionMode =
+  | 'default'
+  | 'protanopia'    | 'protanomaly'
+  | 'deuteranopia'  | 'deuteranomaly'
+  | 'tritanopia'    | 'tritanomaly'
+  | 'achromatopsia' | 'blueConeMonochromacy';
 export type StepSelectionStrategy = 'closest' | 'mirror-closest';
 
 export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', '24px', '32px'];
@@ -11,7 +19,13 @@ export const ALL_FONT_SIZES: FontSizeClass[] = ['12px', '14px', '16px', '20px', 
 // The library does NOT apply these automatically; only 'root' is assumed.
 export const DEFAULT_STACK_NAMES: StackClass[] = ['root', 'card', 'popover', 'tooltip', 'modal', 'overlay'];
 export const ALL_STACKS: StackClass[] = DEFAULT_STACK_NAMES;
-export const ALL_VISION_MODES: VisionMode[] = ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia'];
+export const ALL_VISION_MODES: VisionMode[] = [
+  'default',
+  'protanopia', 'protanomaly',
+  'deuteranopia', 'deuteranomaly',
+  'tritanopia', 'tritanomaly',
+  'achromatopsia', 'blueConeMonochromacy',
+];
 
 // ── Variant key ──────────────────────────────────────────────────────────────
 
@@ -68,6 +82,7 @@ export interface TokenInput {
     defaultTheme?: string;
     stepSelectionStrategy?: StepSelectionStrategy;
     stacks?: Partial<Record<StackClass, number>>;
+    cvd?: CVDOptions;
   };
   primitives: Record<string, (string | ColorValue)[]>;
   themes: Record<string, ThemeInput>;
@@ -81,12 +96,6 @@ export interface ThemeInput extends W3CAnnotations {
   step: number;
   fallback?: string[];
   aliases?: string[];
-  tone?: Record<string, W3CAnnotations & {
-    ramp?: string;
-    step?: number;
-    fallback?: string[];
-    aliases?: string[];
-  }>;
 }
 
 export interface SurfaceInput extends W3CAnnotations {
@@ -100,17 +109,7 @@ export type SemanticInput = W3CAnnotations & {
   defaultStep?: number;
   decorative?: boolean;
   overrides?: ContextOverrideInput[];
-  tone?: Record<string, W3CAnnotations & {
-    ramp?: string;
-    defaultStep?: number;
-    overrides?: ContextOverrideInput[];
-  }>;
   interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
-  vision?: Record<string, W3CAnnotations & {
-    ramp?: string;
-    defaultStep?: number;
-    overrides?: ContextOverrideInput[];
-  }>;
 };
 
 export interface ContextOverrideInput {
@@ -128,7 +127,7 @@ export interface ProcessedInput {
   surfaces: Map<string, ProcessedSurface>;
   semantics: Map<string, ProcessedSemantic>;
   stacks: Map<StackClass, number>;
-  config: Required<Omit<NonNullable<TokenInput['config']>, 'stacks'>>;
+  config: Required<Omit<NonNullable<TokenInput['config']>, 'stacks' | 'cvd'>> & { cvd?: CVDOptions };
 }
 
 export interface ProcessedRamp {
@@ -177,7 +176,6 @@ export interface ProcessedSemantic {
   complianceTarget: 'text' | 'ui-component' | 'decorative';
   overrides: ContextOverrideInput[];
   interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }>;
-  vision: Record<string, { ramp: ProcessedRamp; defaultStep: number; overrides: ContextOverrideInput[] }>;
 }
 
 export interface ContextRule {

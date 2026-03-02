@@ -85,6 +85,7 @@ export function processInput(input: TokenInput): ProcessedInput {
     onUnresolvedOverride: inputConfig.onUnresolvedOverride ?? 'error' as const,
     defaultTheme: inputConfig.defaultTheme ?? firstTheme,
     stepSelectionStrategy: inputConfig.stepSelectionStrategy ?? 'closest' as const,
+    cvd: inputConfig.cvd,
   };
 
   if (!firstTheme) {
@@ -192,24 +193,6 @@ export function processInput(input: TokenInput): ProcessedInput {
         }
       }
 
-      // Build vision overrides — resolve ramp refs
-      const vision: Record<string, { ramp: ProcessedRamp; defaultStep: number; overrides: ContextOverrideInput[] }> = {};
-      if (semInput.vision) {
-        for (const [visionMode, visionInput] of Object.entries(semInput.vision)) {
-          const visionRampName = visionInput.ramp ?? semInput.ramp;
-          const visionRamp = ramps.get(visionRampName);
-          if (!visionRamp) {
-            throw new Error(`Semantic "${tokenName}" vision "${visionMode}" references unknown ramp "${visionRampName}"`);
-          }
-          const visionDefaultStep = visionInput.defaultStep ?? resolvedDefaultStep;
-          vision[visionMode] = {
-            ramp: visionRamp,
-            defaultStep: visionDefaultStep,
-            overrides: visionInput.overrides ?? [],
-          };
-        }
-      }
-
       semantics.set(tokenName, {
         name: tokenName,
         ramp,
@@ -217,7 +200,6 @@ export function processInput(input: TokenInput): ProcessedInput {
         complianceTarget: resolvedComplianceTarget,
         overrides: semInput.overrides ?? [],
         interactions,
-        vision,
       });
     }
   }

@@ -1,4 +1,5 @@
 import type { TokenRegistry, VisionMode } from './types.js';
+import { ALL_VISION_MODES } from './types.js';
 import { resolveToken } from './resolver.js';
 
 // ── Token name → CSS var name ────────────────────────────────────────────────
@@ -153,7 +154,7 @@ export function generateCSS(registry: TokenRegistry): string {
   }
 
   // ── Vision mode blocks ─────────────────────────────────────────────────────
-  const visionModes: VisionMode[] = ['deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia'];
+  const visionModes = ALL_VISION_MODES.filter(m => m !== 'default');
 
   for (const visionMode of visionModes) {
     const hasVision = Array.from(registry.variantMap.keys()).some(k => k.endsWith(`__${visionMode}`));

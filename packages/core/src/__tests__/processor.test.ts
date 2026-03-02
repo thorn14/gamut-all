@@ -73,7 +73,6 @@ describe('processInput', () => {
     expect(fg!.defaultStep).toBe(8);
     expect(fg!.overrides).toEqual([]);
     expect(fg!.interactions).toEqual({});
-    expect(fg!.vision).toEqual({});
   });
 
   it('applies config defaults', () => {
@@ -111,6 +110,55 @@ describe('processInput', () => {
     expect(() => processInput(bad)).toThrow();
   });
 
+  it('assigns complianceTarget "text" for foreground tokens', () => {
+    const result = processInput(minimalInput);
+    const fg = result.semantics.get('fgPrimary');
+    expect(fg!.complianceTarget).toBe('text');
+  });
+
+  it('assigns complianceTarget "ui-component" for nonText tokens', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      nonText: {
+        borderMuted: { ramp: 'neutral', defaultStep: 3 },
+      },
+    };
+    const result = processInput(input);
+    expect(result.semantics.get('borderMuted')!.complianceTarget).toBe('ui-component');
+  });
+
+  it('assigns complianceTarget "decorative" when decorative: true', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      foreground: {
+        fgDecor: { ramp: 'neutral', defaultStep: 3, decorative: true },
+      },
+    };
+    const result = processInput(input);
+    expect(result.semantics.get('fgDecor')!.complianceTarget).toBe('decorative');
+  });
+
+  it('auto-selects ramp midpoint when defaultStep is omitted', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      foreground: {
+        fgAuto: { ramp: 'neutral' }, // 10-step ramp → midpoint = Math.floor(10/2) = 5
+      },
+    };
+    const result = processInput(input);
+    expect(result.semantics.get('fgAuto')!.defaultStep).toBe(5);
+  });
+
+  it('throws on duplicate token name across foreground and nonText', () => {
+    const input: TokenInput = {
+      ...minimalInput,
+      nonText: {
+        fgPrimary: { ramp: 'neutral', defaultStep: 3 }, // same name as in foreground
+      },
+    };
+    expect(() => processInput(input)).toThrow(/fgPrimary/);
+  });
+
   it('processes interactions', () => {
     const input: TokenInput = {
       ...minimalInput,
@@ -131,81 +179,4 @@ describe('processInput', () => {
     expect(link!.interactions['active']!.step).toBe(8);
   });
 
-  it('processes vision overrides', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      primitives: {
-        neutral: minimalInput.primitives['neutral']!,
-        blue: ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'].map(cv),
-      },
-      foreground: {
-        fgError: {
-          ramp: 'neutral',
-          defaultStep: 6,
-          vision: {
-            deuteranopia: { ramp: 'blue', defaultStep: 6 },
-          },
-        },
-      },
-    };
-    const result = processInput(input);
-    const error = result.semantics.get('fgError');
-    expect(error!.vision['deuteranopia']!.ramp.name).toBe('blue');
-    expect(error!.vision['deuteranopia']!.defaultStep).toBe(6);
-  });
-
-  it('sets complianceTarget text for foreground tokens', () => {
-    const result = processInput(minimalInput);
-    const fg = result.semantics.get('fgPrimary');
-    expect(fg!.complianceTarget).toBe('text');
-  });
-
-  it('sets complianceTarget ui-component for nonText tokens', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      nonText: { borderMain: { ramp: 'neutral', defaultStep: 5 } },
-    };
-    const result = processInput(input);
-    const border = result.semantics.get('borderMain');
-    expect(border!.complianceTarget).toBe('ui-component');
-  });
-
-  it('auto-assigns defaultStep to ramp midpoint when omitted', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      foreground: { fgAuto: { ramp: 'neutral' } },
-    };
-    const result = processInput(input);
-    const fg = result.semantics.get('fgAuto');
-    // neutral has 10 steps, midpoint = Math.floor(10/2) = 5
-    expect(fg!.defaultStep).toBe(5);
-  });
-
-  it('sets complianceTarget decorative when decorative: true on nonText token', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      nonText: { borderMuted: { ramp: 'neutral', defaultStep: 3, decorative: true } },
-    };
-    const result = processInput(input);
-    const border = result.semantics.get('borderMuted');
-    expect(border!.complianceTarget).toBe('decorative');
-  });
-
-  it('sets complianceTarget decorative when decorative: true on foreground token', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      foreground: { fgDecorative: { ramp: 'neutral', defaultStep: 5, decorative: true } },
-    };
-    const result = processInput(input);
-    const fg = result.semantics.get('fgDecorative');
-    expect(fg!.complianceTarget).toBe('decorative');
-  });
-
-  it('throws when a token name appears in both foreground and nonText', () => {
-    const input: TokenInput = {
-      ...minimalInput,
-      nonText: { fgPrimary: { ramp: 'neutral', defaultStep: 5 } },
-    };
-    expect(() => processInput(input)).toThrow(/appears in both/);
-  });
 });
