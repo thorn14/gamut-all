@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { buildRegistry, processInput, wcag21, apca } from '@gamut-all/core';
 import type { TokenInput, TokenRegistry, ComplianceEngine } from '@gamut-all/core';
+import { Analytics } from '@vercel/analytics/react';
 import tokensRaw from '../tokens.json';
 import primitivesRaw from '../primitives.json';
 import './app.css';
@@ -35,5 +36,6 @@ const registries = {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App registries={registries} />
+    <Analytics />
   </StrictMode>,
 );

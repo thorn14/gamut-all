@@ -15,6 +15,7 @@
     "@base-ui/react": "^1.2.0",
     "@gamut-all/core": "workspace:*",
     "@gamut-all/react": "workspace:*",
+    "@vercel/analytics": "^1.6.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
