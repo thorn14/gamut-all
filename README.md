@@ -1,6 +1,7 @@
 # gamut-all
 
 ![Demo](demo.gif)
+[Play with a rough demo](https://gamut-all.vercel.app/)
 
 Design tokens that are automatic.
 
