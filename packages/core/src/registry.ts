@@ -102,6 +102,93 @@ const MIN_HUE_GAP_DEG = 20;
 
 type HueBand = { sourceRanges: Array<[number, number]>; targetRange: [number, number] };
 
+/**
+ * Find contiguous free sub-spans within [lo, hi] that are at least `gap` degrees
+ * clear of every occupant hue on each side.
+ */
+function findFreeSpans(lo: number, hi: number, occupants: number[], gap: number): Array<[number, number]> {
+  if (occupants.length === 0) return [[lo, hi]];
+  const blocked: Array<[number, number]> = occupants
+    .map(h => [Math.max(lo, h - gap), Math.min(hi, h + gap)] as [number, number])
+    .filter(([a, b]) => a < hi && b > lo)
+    .sort((a, b) => a[0] - b[0]);
+  // Merge overlapping blocked ranges
+  const merged: Array<[number, number]> = [];
+  for (const [a, b] of blocked) {
+    if (merged.length > 0 && a <= merged[merged.length - 1]![1]) {
+      merged[merged.length - 1]![1] = Math.max(merged[merged.length - 1]![1], b);
+    } else {
+      merged.push([a, b]);
+    }
+  }
+  const spans: Array<[number, number]> = [];
+  let cursor = lo;
+  for (const [blo, bhi] of merged) {
+    if (blo > cursor) spans.push([cursor, blo]);
+    cursor = Math.max(cursor, bhi);
+  }
+  if (cursor < hi) spans.push([cursor, hi]);
+  return spans.filter(([a, b]) => b > a);
+}
+
+/**
+ * Spread `ramps` into target range [lo, hi], avoiding `occupantHues` by MIN_HUE_GAP_DEG.
+ * Occupants are non-shifted chromatic ramps that already occupy hues in/near the range.
+ * When free space exists, ramps are placed evenly within the free sub-spans.
+ * When the range is fully occupied, the least-blocked position is used with chroma reduction.
+ */
+function spreadRamps(
+  ramps: string[],
+  lo: number,
+  hi: number,
+  rampMedianHues: Map<string, number>,
+  occupantHues: number[],
+): Map<string, { targetHue: number; chromaScale: number }> {
+  const result = new Map<string, { targetHue: number; chromaScale: number }>();
+  if (ramps.length === 0) return result;
+
+  const sorted = [...ramps].sort((a, b) => (rampMedianHues.get(a) ?? 0) - (rampMedianHues.get(b) ?? 0));
+  const freeSpans = findFreeSpans(lo, hi, occupantHues, MIN_HUE_GAP_DEG);
+  const totalSlots = freeSpans.reduce((s, [a, b]) => s + Math.floor((b - a) / MIN_HUE_GAP_DEG) + 1, 0);
+  const hueCount = Math.min(sorted.length, totalSlots);
+
+  if (hueCount === 0) {
+    // No free space — find the least-blocked position and use chroma reduction
+    let bestH = (lo + hi) / 2;
+    let bestDist = 0;
+    const step = Math.max(0.5, (hi - lo) / 80);
+    for (let h = lo; h <= hi; h += step) {
+      const d = occupantHues.length > 0 ? Math.min(...occupantHues.map(o => Math.abs(h - o))) : Infinity;
+      if (d > bestDist) { bestDist = d; bestH = h; }
+    }
+    for (let i = 0; i < sorted.length; i++) {
+      result.set(sorted[i]!, { targetHue: bestH, chromaScale: Math.max(0.25, 1.0 - (i + 1) * 0.25) });
+    }
+    return result;
+  }
+
+  // Distribute hueCount ramps proportionally across free spans
+  let rampIdx = 0;
+  for (const [slo, shi] of freeSpans) {
+    if (rampIdx >= hueCount) break;
+    const spanSlots = Math.floor((shi - slo) / MIN_HUE_GAP_DEG) + 1;
+    const share = Math.round((spanSlots / totalSlots) * hueCount);
+    const rampsHere = Math.min(Math.max(share, 1), hueCount - rampIdx);
+    for (let k = 0; k < rampsHere; k++, rampIdx++) {
+      const frac = rampsHere === 1 ? 0.5 : k / (rampsHere - 1);
+      result.set(sorted[rampIdx]!, { targetHue: slo + frac * (shi - slo), chromaScale: 1.0 });
+    }
+  }
+
+  // Overflow ramps (beyond slot capacity)
+  for (let i = hueCount; i < sorted.length; i++) {
+    const overflowRank = i - hueCount + 1;
+    const lastPlaced = result.get(sorted[hueCount - 1]!);
+    result.set(sorted[i]!, { targetHue: lastPlaced?.targetHue ?? (lo + hi) / 2, chromaScale: 1.0 - overflowRank * 0.25 });
+  }
+  return result;
+}
+
 // Per CVD type: which source hue bands are confused, and which safe target range to shift into.
 // Hue angles are OKLCH (degrees, 0–360). Ranges are [min, max) and may wrap around 360°.
 // When multiple ramps fall into the same band, their target hues are spread proportionally
@@ -242,22 +329,21 @@ function autoCVDSurfaces(
         }
       }
 
-      // Spread target hues across band ranges (same logic as autoCVDVariants)
+      // Spread target hues across band ranges, avoiding ramps already occupying the target zone.
       const affectedRamps = new Map<string, { targetHue: number; chromaScale: number }>();
       for (const [ramps, band] of [[bandRamps.A, policy.bandA], [bandRamps.B, policy.bandB]] as const) {
         if (ramps.length === 0) continue;
         const [lo, hi] = band.targetRange;
-        const sorted = [...ramps].sort((a, b) => (rampMedianHues.get(a) ?? 0) - (rampMedianHues.get(b) ?? 0));
-        const maxByHue = Math.floor((hi - lo) / MIN_HUE_GAP_DEG) + 1;
-        const hueCount = Math.min(sorted.length, maxByHue);
-        for (let i = 0; i < hueCount; i++) {
-          const frac = hueCount === 1 ? 0.5 : i / (hueCount - 1);
-          affectedRamps.set(sorted[i]!, { targetHue: lo + frac * (hi - lo), chromaScale: 1.0 });
+        // Collect hues of chromatic ramps already within (or near) the target range that aren't
+        // being shifted — they act as fixed anchors the shifted ramps must avoid.
+        const occupantHues: number[] = [];
+        for (const [name, h] of rampMedianHues) {
+          if (!chromaticRamps.has(name)) continue;
+          if (bandRamps.A.includes(name) || bandRamps.B.includes(name)) continue;
+          if (h >= lo - MIN_HUE_GAP_DEG && h < hi + MIN_HUE_GAP_DEG) occupantHues.push(h);
         }
-        for (let i = hueCount; i < sorted.length; i++) {
-          const overflowRank = i - hueCount + 1;
-          const boundaryHue = sorted[i]! > sorted[hueCount - 1]! ? hi : lo;
-          affectedRamps.set(sorted[i]!, { targetHue: boundaryHue, chromaScale: 1.0 - overflowRank * 0.25 });
+        for (const [name, placement] of spreadRamps(ramps, lo, hi, rampMedianHues, occupantHues)) {
+          affectedRamps.set(name, placement);
         }
       }
 
@@ -366,30 +452,22 @@ function autoCVDVariants(
             }
           }
 
-          // Spread target hues proportionally across the band's targetRange, sorted by
-          // original median hue so relative hue order is preserved after shifting.
-          // One ramp → center of range. N ramps → evenly distributed across the range.
-          //
-          // Overflow: the range has finite capacity — floor((hi-lo)/MIN_HUE_GAP_DEG)+1 slots.
-          // Ramps beyond that capacity get the same hue as the nearest boundary ramp but
-          // with progressively reduced chroma (−25% per overflow rank), differentiating them
-          // along the saturation axis instead of the hue axis.
+          // Spread target hues across the band's targetRange, avoiding chromatic ramps that
+          // already occupy the target zone (e.g. an existing "info blue" ramp in the blue zone).
+          // When free sub-spans exist, shifted ramps are placed there; otherwise chroma reduction
+          // is used to keep them distinguishable from fixed occupants.
           const affectedRamps = new Map<string, { targetHue: number; chromaScale: number }>();
           for (const [ramps, band] of [[bandRamps.A, policy.bandA], [bandRamps.B, policy.bandB]] as const) {
             if (ramps.length === 0) continue;
             const [lo, hi] = band.targetRange;
-            const sorted = [...ramps].sort((a, b) => (rampMedianHues.get(a) ?? 0) - (rampMedianHues.get(b) ?? 0));
-            const maxByHue = Math.floor((hi - lo) / MIN_HUE_GAP_DEG) + 1;
-            const hueCount = Math.min(sorted.length, maxByHue);
-            for (let i = 0; i < hueCount; i++) {
-              const frac = hueCount === 1 ? 0.5 : i / (hueCount - 1);
-              affectedRamps.set(sorted[i]!, { targetHue: lo + frac * (hi - lo), chromaScale: 1.0 });
+            const occupantHues: number[] = [];
+            for (const [name, h] of rampMedianHues) {
+              if (!chromaticRamps.has(name)) continue;
+              if (bandRamps.A.includes(name) || bandRamps.B.includes(name)) continue;
+              if (h >= lo - MIN_HUE_GAP_DEG && h < hi + MIN_HUE_GAP_DEG) occupantHues.push(h);
             }
-            // Overflow ramps: pin to the nearest boundary hue, reduce chroma by 25% per rank.
-            for (let i = hueCount; i < sorted.length; i++) {
-              const overflowRank = i - hueCount + 1;
-              const boundaryHue = sorted[i]! > sorted[hueCount - 1]! ? hi : lo;
-              affectedRamps.set(sorted[i]!, { targetHue: boundaryHue, chromaScale: 1.0 - overflowRank * 0.25 });
+            for (const [name, placement] of spreadRamps(ramps, lo, hi, rampMedianHues, occupantHues)) {
+              affectedRamps.set(name, placement);
             }
           }
 

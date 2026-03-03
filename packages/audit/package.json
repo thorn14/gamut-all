@@ -1,8 +1,15 @@
 {
   "name": "@gamut-all/audit",
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "description": "CI audit tooling for gamut-all design tokens",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "gamut-audit": "./dist/cli.js"
   },

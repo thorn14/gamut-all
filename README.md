@@ -200,6 +200,51 @@ The explicit override takes full precedence over auto-mirroring.
 
 ---
 
+## Surface utility classes
+
+Every surface emits a `.bg-{surfaceName}` CSS class (and `.hover\:bg-{surfaceName}:hover`) that sets both the `background` property **and** all resolved foreground token vars for that surface. Apply the class and accessibility cascades to descendants automatically — no per-child token overrides needed.
+
+```html
+<!-- All --fg-* vars auto-resolve for bgSuccess context -->
+<div class="bg-bgSuccess">
+  <p style="color: var(--fg-primary)">Accessible on emerald</p>
+  <p style="color: var(--fg-danger)">Danger text, also resolved</p>
+</div>
+
+<!-- Hover transition with correct token cascade -->
+<button class="bg-bgMain hover:bg-bgSuccess">
+  Hover — contrast updates for all child tokens
+</button>
+```
+
+### Generated output
+
+```css
+/* Default surface context */
+.bg-bgSuccess,
+.hover\:bg-bgSuccess:hover {
+  background: var(--bg-success);
+  --fg-primary: #022c22;   /* highest-contrast emerald step against #059669 */
+  --fg-link:    #172554;
+  /* ... all other tokens resolved at 12px AA */
+}
+
+/* Dark theme — auto-mirrored surface hex differs, so tokens differ too */
+[data-theme="dark"] .bg-bgSuccess,
+[data-theme="dark"] .hover\:bg-bgSuccess:hover {
+  --fg-primary: #d1fae5;
+  --fg-link:    #bfdbfe;
+}
+```
+
+A `[data-theme]` override block is only emitted when at least one token value differs from the default. If the dark surface resolves identically, no override block is written.
+
+### Best-effort fallback
+
+When a token shares the same ramp as the surface (e.g. `fgSuccess` on `bgSuccess`, both using the emerald ramp), no step may achieve the AA threshold. gamut-all falls back to the **highest-contrast step in the ramp** so the token is never unset. The audit package flags these as `non-compliant-surface-token` so you can track them explicitly.
+
+---
+
 ## Configuration
 
 ### `config`

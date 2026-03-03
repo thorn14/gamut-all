@@ -1,7 +1,15 @@
 {
   "name": "@gamut-all/core",
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
+  "files": [
+    "dist",
+    "schema.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

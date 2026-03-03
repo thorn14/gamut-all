@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { simulateCVD, oklabDE } from '../utils/cvd.js';
+import { simulateCVD, oklabDE, oklabHueDE } from '../utils/cvd.js';
 import { processInput, buildRegistry, wcag21 } from '../index.js';
 import type { TokenInput } from '../types.js';
 
@@ -204,6 +204,48 @@ describe('buildRegistry CVD auto-generation', () => {
       if (visionPart !== 'default') {
         expect(variant.compliance.pass, `CVD variant ${key} should pass AAA`).toBe(true);
       }
+    }
+  });
+
+  it('CVD surface hue-shift avoids surfaces already occupying the target zone', () => {
+    // Regression test: when danger (red) and success (green) are confused under deuteranopia,
+    // the shifted danger surface must NOT be placed at the same hue as an existing info (blue/sky)
+    // surface that already occupies the shift target range [230, 270].
+    const primitives = {
+      neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'],
+      red:     ['#fef2f2', '#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d'],
+      green:   ['#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d'],
+      sky:     ['#f0f9ff', '#e0f2fe', '#bae6fd', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#075985', '#0c4a6e'],
+    };
+    const input: TokenInput = {
+      config: { wcagTarget: 'AA', complianceEngine: 'wcag21' },
+      primitives,
+      themes: { dark: { ramp: 'neutral', step: 8 } },
+      surfaces: {
+        bgDanger: { ramp: 'red',   step: 1 }, // mirrored on dark → step 8 = dark red
+        bgSuccess: { ramp: 'green', step: 1 }, // mirrored on dark → dark green
+        bgInfo:   { ramp: 'sky',   step: 1 }, // mirrored on dark → dark sky blue
+      },
+      foreground: { fgMain: { ramp: 'neutral', defaultStep: 9 } },
+    };
+    const processed = processInput(input);
+    const registry = buildRegistry(processed, wcag21);
+
+    // Get the deuteranopia CVD overrides for the dark theme
+    const bgDanger  = registry.surfaces.get('bgDanger');
+    const bgInfo    = registry.surfaces.get('bgInfo');
+    expect(bgDanger).toBeDefined();
+    expect(bgInfo).toBeDefined();
+
+    const dangerCvdEntry = bgDanger!.visionOverrides.get('dark')?.get('deuteranopia');
+    const infoCvdEntry   = bgInfo!.visionOverrides.get('dark')?.get('deuteranopia');
+
+    if (dangerCvdEntry) {
+      // If a hue override was generated for danger, it must be distinguishable from info's hex.
+      // Info has no override (it's already in a safe zone), so compare against its base dark hex.
+      const infoHex = infoCvdEntry?.hex ?? bgInfo!.hex;
+      const hueDE = oklabHueDE(dangerCvdEntry.hex, infoHex);
+      expect(hueDE).toBeGreaterThan(3);
     }
   });
 
