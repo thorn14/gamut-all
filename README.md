@@ -4,22 +4,20 @@
 
 Design tokens that are automatic.
 
-Most token systems are hand-curated for every single state, with every possible combination. gamut-all automates that work. Define your ramps. Name your themes and surfaces. It finds the right color for every context — background, elevation, vision mode — and guarantees WCAG AA/AAA compliance at build time. If a specified step doesn't work, it will choose the next closest color that maps properly. No more semantic token soup.
-
-**How it works.** You define color ramps (ordered arrays of hex or OKLCH values) and name your themes and surfaces. The engine evaluates every token × surface × font size × elevation × vision mode combination at build time and emits a flat CSS custom properties file. At runtime, `data-theme`, `data-stack`, and `data-vision` attributes on DOM elements activate the right values through the CSS cascade — no JavaScript required for standard usage.
+Most token systems require hand-curating every state — every theme variant, every elevation level, every vision mode. gamut-all automates that work. Define your color ramps and name your themes and surfaces. The engine evaluates every token × surface × font size × elevation × vision mode combination at build time and emits a flat CSS custom properties file. At runtime, `data-theme`, `data-stack`, and `data-vision` attributes on DOM elements activate the right values through the CSS cascade — no JavaScript required for standard usage.
 
 **What's possible.**
 
 - **Themes** — `data-theme="light"` / `"dark"` / any named theme switches the full token set automatically
-- **Surfaces** — Named background colors (`bgBrand`, `bgDanger`, `bgMain`) emitted as `--bg-*` CSS vars, with hover/active states and automatic dark-theme adaptation
-- **Elevation** — `data-stack="card"` / `"modal"` / `"tooltip"` shifts the surface one or more ramp steps and re-resolves every token against the new surface
-- **CVD simulation** — Automatic hue-shifted variants for six color vision deficiency types, applied to both semantic tokens and surface backgrounds. Zero configuration required.
+- **Surfaces** — Named colored backgrounds (`bgBrand`, `bgDanger`) emitted as `--bg-*` CSS vars, with hover/active states and automatic dark-theme adaptation via ramp mirroring or nearest fit
+- **Elevation** — `data-stack="modal"` / `"tooltip"` shifts the surface one or more ramp steps and re-resolves every token against the new surface hex
+- **CVD simulation** — Automatic hue-shifted variants for all six chromatic vision deficiency types, applied to both semantic tokens and surface backgrounds. Activates via `data-vision`.
 - **Compliance** — WCAG 2.1 or APCA; AA or AAA; verified at build time with a CLI coverage report showing exactly which ramp steps pass on which surfaces
 - **Contextual overrides** — Surgical overrides for specific backgrounds, font sizes, or stack levels when auto-resolution needs a hint
 
 ---
 
-## vs. Standard Semantic Token Systems
+## vs. Standard semantic token systems
 
 | | Standard tokens | gamut-all |
 |---|---|---|
@@ -27,7 +25,7 @@ Most token systems are hand-curated for every single state, with every possible 
 | Define each elevation variant | ✗ manually | ✓ automatic |
 | Surface dark-theme adaptation | ✗ manually | ✓ auto-mirrors across ramp midpoint |
 | Surface hover/active states | ✗ separately defined | ✓ inline `interactions` |
-| Define vision mode overrides | ✗ manually | ✓ auto-generated via CVD simulation |
+| Vision mode overrides | ✗ manually | ✓ auto-generated via CVD simulation |
 | Compliance checked | ✗ manually or not at all | ✓ at build time, every variant |
 | New surface added | ✗ update every token | ✓ update one surface entry |
 | Ramp color changed | ✗ audit all downstream tokens | ✓ re-run build |
@@ -37,10 +35,10 @@ Most token systems are hand-curated for every single state, with every possible 
 
 ## Installation
 
-### For Humans
-
 ```bash
-pnpm add @gamut-all/core
+pnpm add @gamut-all/core        # token engine, Vite plugin, CSS generation
+pnpm add @gamut-all/react       # React provider, hooks, components
+pnpm add @gamut-all/audit       # gamut-audit CLI for CI
 ```
 
 Add the Vite plugin:
@@ -51,12 +49,7 @@ import { designTokensPlugin } from '@gamut-all/core/vite';
 
 export default defineConfig({
   plugins: [
-    designTokensPlugin({
-      input: './tokens.json',
-      outputDir: './src/generated',
-      emitTypes: true,
-      emitCSS: true,
-    }),
+    designTokensPlugin({ input: './tokens.json' }),
   ],
 });
 ```
@@ -67,60 +60,67 @@ Import the generated CSS in your entry point:
 import './generated/tokens.css';
 ```
 
-For React:
-
-```bash
-pnpm add @gamut-all/react
-```
-
 ### For LLM Agents
 
-The schema is the source of truth for the `tokens.json` structure. You can find it in `@gamut-all/core/schema.json`.
+The schema is the source of truth for the `tokens.json` structure: `node_modules/@gamut-all/core/schema.json`.
 
 ---
 
 ## tokens.json
 
-One file drives everything.
+Two files drive everything. Primitives live in their own file so the ramp palette can be shared, versioned, and swapped independently of the token definitions.
+
+**`primitives.json`**
+
+```json
+{
+  "$schema": "node_modules/@gamut-all/core/primitives-schema.json",
+  "slate":   ["#f8fafc", "#f1f5f9", "#e2e8f0", "#cbd5e1", "#94a3b8",
+              "#64748b", "#475569", "#334155", "#1e293b", "#0f172a"],
+  "blue":    ["#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa",
+              "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af", "#1e3a8a"],
+  "red":     ["#fef2f2", "#fee2e2", "#fecaca", "#fca5a5", "#f87171",
+              "#ef4444", "#dc2626", "#b91c1c", "#991b1b", "#7f1d1d"],
+  "emerald": ["#ecfdf5", "#d1fae5", "#a7f3d0", "#6ee7b7", "#34d399",
+              "#10b981", "#059669", "#047857", "#065f46", "#064e3b"]
+}
+```
+
+**`tokens.json`**
 
 ```json
 {
   "$schema": "node_modules/@gamut-all/core/schema.json",
+  "$primitives": "./primitives.json",
   "config": {
     "wcagTarget": "AA",
     "complianceEngine": "wcag21",
-    "defaultTheme": "light"
-  },
-  "primitives": {
-    "slate": ["#f8fafc", "#f1f5f9", "#e2e8f0", "#cbd5e1", "#94a3b8",
-              "#64748b", "#475569", "#334155", "#1e293b", "#0f172a", "#020617"],
-    "blue":  ["#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa",
-              "#3b82f6", "#2563eb", "#1d4ed8", "#1e40af", "#1e3a8a", "#172554"],
-    "emerald": ["#ecfdf5", "#d1fae5", "#a7f3d0", "#6ee7b7", "#34d399",
-                "#10b981", "#059669", "#047857", "#065f46", "#064e3b", "#022c22"]
+    "stacks": { "nav": 1, "modal": 1, "tooltip": 1 }
   },
   "themes": {
     "light": { "ramp": "slate", "step": 0, "fallback": ["dark"] },
-    "dark":  { "ramp": "slate", "step": 10, "fallback": ["light"] }
+    "dark":  { "ramp": "slate", "step": 9, "fallback": ["light"] }
   },
   "surfaces": {
-    "bgMain":    { "ramp": "slate",   "step": 1,
-                   "interactions": { "hover": { "step": 2 }, "active": { "step": 3 } } },
-    "bgInverse": { "ramp": "slate",   "step": 10 },
-    "bgBrand":   { "ramp": "blue",    "step": 5 },
-    "bgSuccess": { "ramp": "emerald", "step": 6 },
-    "bgSuccessMuted": { "ramp": "emerald", "step": 1 }
+    "bgMain":        { "ramp": "slate",   "step": 1,
+                       "interactions": { "hover": { "step": 2 }, "active": { "step": 3 } } },
+    "bgBrand":       { "ramp": "blue",    "step": 5 },
+    "bgDanger":      { "ramp": "red",     "step": 6 },
+    "bgDangerMuted": { "ramp": "red",     "step": 1 },
+    "bgSuccess":     { "ramp": "emerald", "step": 6 },
+    "bgInverse":     { "ramp": "slate",   "step": 9,
+                       "themes": { "dark": { "step": 0 } } }
   },
   "foreground": {
-    "fgPrimary": { "ramp": "slate", "defaultStep": 10 },
-    "fgLink": {
-      "ramp": "blue",
-      "defaultStep": 6,
-      "interactions": { "hover": { "step": 8 }, "active": { "step": 9 } }
-    }
+    "fgMain":    { "ramp": "slate",   "defaultStep": 9 },
+    "fgBrand":   { "ramp": "blue",    "defaultStep": 5,
+                   "interactions": { "hover": { "step": 6 }, "active": { "step": 7 } } },
+    "fgDanger":  { "ramp": "red",     "defaultStep": 5 },
+    "fgSuccess": { "ramp": "emerald", "defaultStep": 5 }
   },
   "nonText": {
-    "borderAction": { "ramp": "blue", "defaultStep": 5 }
+    "borderMain":   { "ramp": "slate", "defaultStep": 4 },
+    "borderDanger": { "ramp": "red",   "defaultStep": 5 }
   }
 }
 ```
@@ -128,266 +128,217 @@ One file drives everything.
 Use in markup:
 
 ```html
-<!-- Theme -->
+<!-- Activate a theme -->
 <html data-theme="dark">
 
-<!-- Elevation — cascades from the ancestor -->
-<div data-stack="card">
-  <div data-stack="modal">
+<!-- Elevate the surface — tokens recalculate against the modal surface -->
+<div data-stack="modal">
 
-<!-- Vision mode — hue-shifted tokens applied automatically -->
-<div data-vision="protanopia">
+<!-- Preview a vision mode — hue-shifted tokens and surfaces activate -->
+<div data-vision="deuteranopia">
 ```
 
 ---
 
 ## Surfaces
 
-Surfaces are named background colors — `bgBrand`, `bgMain`, `bgDanger`, etc. They are emitted as `--bg-*` CSS custom properties and adapt to dark themes automatically.
+Surfaces are named background colors. They emit as `--bg-*` CSS vars and adapt automatically to dark themes by mirroring the ramp.
 
 ### Generated CSS
 
 ```css
 :root {
-  --bg-main: #f1f5f9;         /* slate step 1 */
-  --bg-main-hover: #e2e8f0;   /* slate step 2 */
-  --bg-main-active: #cbd5e1;  /* slate step 3 */
-  --bg-success-muted: #ecfdf5; /* emerald step 1 */
+  --bg-main:        #f1f5f9;  /* slate step 1  */
+  --bg-main-hover:  #e2e8f0;  /* slate step 2  */
+  --bg-main-active: #cbd5e1;  /* slate step 3  */
+  --bg-danger-muted:#fee2e2;  /* red step 1    */
 }
 
 [data-theme="dark"] {
-  --bg-main: #1e293b;          /* auto-mirrored: step 10-1 = step 9 */
-  --bg-main-hover: #334155;    /* auto-mirrored: step 10-2 = step 8 */
-  --bg-main-active: #475569;   /* auto-mirrored: step 10-3 = step 7 */
-  --bg-success-muted: #064e3b; /* auto-mirrored: emerald step 10-1 = step 9 */
+  --bg-main:        #1e293b;  /* auto-mirrored: slate step 9−1 = step 8 */
+  --bg-main-hover:  #334155;  /* auto-mirrored: slate step 9−2 = step 7 */
+  --bg-main-active: #475569;  /* auto-mirrored: slate step 9−3 = step 6 */
+  --bg-danger-muted:#991b1b;  /* auto-mirrored: red step 9−1   = step 8 */
 }
 ```
 
 ### Auto-mirroring
 
-When a theme has `elevationDirection === 'lighter'` (i.e. the theme step is above the ramp midpoint — dark themes), every surface is automatically mirrored across the ramp midpoint using the formula:
+When a theme's step is above the ramp midpoint (dark themes), every surface is automatically mirrored:
 
 ```
-mirroredStep = (rampLength - 1) - declaredStep
+mirroredStep = (rampLength − 1) − declaredStep
 ```
 
-This applies to all ramps, not just the theme's ramp. A muted emerald surface (step 1) on a dark theme becomes a dark emerald tint (step 9). A light stone card (step 1) becomes a dark stone card (step 9). No manual dark overrides needed.
-
-Interaction states (`hover`, `active`) are mirrored using the same formula, independently of the base step.
+This applies across all ramps. A muted red surface (step 1) on a dark theme becomes a deep red (step 8). No manual dark overrides needed. Interaction states are mirrored independently.
 
 ### Explicit theme overrides
 
-Override the auto-mirror for any surface by declaring a `themes` map:
+Override the auto-mirror for a specific surface by declaring a `themes` map:
 
 ```json
 "bgInverse": {
   "ramp": "slate",
-  "step": 10,
+  "step": 9,
   "themes": { "dark": { "step": 0 } }
 }
 ```
 
-The explicit override takes full precedence over auto-mirroring.
-
-### `surfaces` fields
-
-| Field | Description |
-|---|---|
-| `ramp` | Source ramp |
-| `step` | Default step index |
-| `interactions` | Named states (`hover`, `active`, etc.) each with their own `step` |
-| `themes` | Per-theme step overrides — overrides auto-mirroring for that specific theme |
+The explicit value takes full precedence over mirroring.
 
 ---
 
 ## Surface utility classes
 
-Every surface emits a `.bg-{surfaceName}` CSS class (and `.hover\:bg-{surfaceName}:hover`) that sets both the `background` property **and** all resolved foreground token vars for that surface. Apply the class and accessibility cascades to descendants automatically — no per-child token overrides needed.
+Every surface emits a `.bg-{name}` CSS class (and `.hover\:bg-{name}:hover`) that sets the `background` and re-declares all foreground token vars resolved against that surface hex. Apply the class and descendants get correct contrast automatically.
 
 ```html
-<!-- All --fg-* vars auto-resolve for bgSuccess context -->
-<div class="bg-bgSuccess">
-  <p style="color: var(--fg-primary)">Accessible on emerald</p>
-  <p style="color: var(--fg-danger)">Danger text, also resolved</p>
+<div class="bg-bgDangerMuted">
+  <p style="color: var(--fg-main)">Accessible on muted red</p>
+  <p style="color: var(--fg-danger)">Danger text — also auto-resolved</p>
 </div>
 
-<!-- Hover transition with correct token cascade -->
-<button class="bg-bgMain hover:bg-bgSuccess">
-  Hover — contrast updates for all child tokens
+<button class="bg-bgMain hover:bg-bgBrand">
+  Hover — all child token vars update to the brand surface context
 </button>
 ```
 
-### Generated output
+Generated output:
 
 ```css
-/* Default surface context */
-.bg-bgSuccess,
-.hover\:bg-bgSuccess:hover {
-  background: var(--bg-success);
-  --fg-primary: #022c22;   /* highest-contrast emerald step against #059669 */
-  --fg-link:    #172554;
-  /* ... all other tokens resolved at 12px AA */
+.bg-bgDangerMuted,
+.hover\:bg-bgDangerMuted:hover {
+  background: var(--bg-danger-muted);
+  --fg-main:   #7f1d1d;  /* highest-contrast red step against #fee2e2 */
+  --fg-danger: #991b1b;
+  /* ... all tokens resolved at 12px AA */
 }
 
-/* Dark theme — auto-mirrored surface hex differs, so tokens differ too */
-[data-theme="dark"] .bg-bgSuccess,
-[data-theme="dark"] .hover\:bg-bgSuccess:hover {
-  --fg-primary: #d1fae5;
-  --fg-link:    #bfdbfe;
+[data-theme="dark"] .bg-bgDangerMuted,
+[data-theme="dark"] .hover\:bg-bgDangerMuted:hover {
+  --fg-main:   #fecaca;
+  --fg-danger: #f87171;
 }
 ```
 
-A `[data-theme]` override block is only emitted when at least one token value differs from the default. If the dark surface resolves identically, no override block is written.
+A theme override block is only emitted when at least one token value differs from the default.
 
-### Best-effort fallback
-
-When a token shares the same ramp as the surface (e.g. `fgSuccess` on `bgSuccess`, both using the emerald ramp), no step may achieve the AA threshold. gamut-all falls back to the **highest-contrast step in the ramp** so the token is never unset. The audit package flags these as `non-compliant-surface-token` so you can track them explicitly.
+When a token shares its ramp with the surface (e.g. `fgDanger` on `bgDanger`, both using the red ramp), no step may reach the AA threshold. The engine falls back to the highest-contrast step in the ramp and flags it as `non-compliant-surface-token` in the audit output.
 
 ---
 
-## Configuration
+## Elevation stacks
 
-### `config`
+Stacks model elevated UI surfaces — drawers, tooltips, modals. Each stack name maps to an offset (in ramp steps) that is added to the theme's base step when resolving the surface:
 
-| Field | Default | Description |
-|---|---|---|
-| `wcagTarget` | `"AA"` | Minimum contrast level — `"AA"` or `"AAA"` |
-| `complianceEngine` | `"wcag21"` | `"wcag21"` (ratio) or `"apca"` (Lc value) |
-| `defaultTheme` | first theme key | The theme whose values are written to `:root` |
-| `stepSelectionStrategy` | `"closest"` | `"closest"` or `"mirror-closest"` — how to find the nearest passing step when the default fails |
-| `onUnresolvedOverride` | `"warn"` | What to do when a manual override fails compliance: `"warn"` or `"error"` |
-| `stacks` | `{ root: 0 }` | Elevation offsets per stack level, e.g. `{ card: 1, modal: 2 }` |
-| `cvd` | see below | Color Vision Deficiency simulation options |
+```json
+"stacks": { "nav": 1, "modal": 1, "tooltip": 1, "overlay": 2 }
+```
 
-### `cvd` options
+Every token is re-evaluated for contrast against the elevated surface hex:
 
-| Field | Default | Description |
-|---|---|---|
-| `enabled` | `true` | Set to `false` to disable all CVD variant generation |
-| `confusionThresholdDE` | `5` | Hue ΔE below which two colors are considered confused under simulation |
-| `distinguishableThresholdDE` | `8` | Hue ΔE above which two colors are considered distinguishable without simulation |
-
-### `themes`
-
-| Field | Description |
-|---|---|
-| `ramp` | Which primitive ramp to use |
-| `step` | Index into the ramp (0 = lightest by convention) |
-| `fallback` | Other themes to inherit from when a token has no entry for this one |
-| `aliases` | Alternate names for this theme |
-
-### `foreground` / `nonText` (Tokens)
-
-| Field | Description |
-|---|---|
-| `ramp` | Source ramp for this token |
-| `defaultStep` | Preferred step — omit to use the ramp midpoint |
-| `decorative` | If `true`, WCAG contrast checks are bypassed (graphical/decorative use) |
-| `interactions` | Named interaction states (`hover`, `active`, `focus`) each with `step` and optional `overrides` |
-| `overrides` | Array of context-specific overrides targeting `bg`, `fontSize`, and/or `stack` |
+```css
+[data-theme="light"] [data-stack="modal"] {
+  --bg-surface: var(--slate-1);   /* one step darker than root */
+  --fg-main: #0f172a;             /* recalculated against the modal surface */
+}
+```
 
 ---
 
 ## Color Vision Deficiency (CVD)
 
-gamut-all automatically generates hue-shifted token and surface variants for users with color vision deficiency. No additional configuration is required — it runs at build time and activates via `data-vision`.
+gamut-all automatically generates hue-shifted variants for all six chromatic deficiency types. No configuration required — it runs at build time and activates via `data-vision`.
 
 ### How it works
 
-1. **Simulate** — Every token's hex is run through a CVD simulation matrix (Viénot 1999 / Brettel 1997 HPE pipeline) for each of the six supported types.
-2. **Detect confusion** — Pairs of tokens that are distinguishable in normal vision but fall below the hue ΔE confusion threshold under simulation are flagged.
-3. **Shift hues** — Affected tokens are shifted to a safe hue zone that remains distinguishable under that CVD type. The hue target is determined by a per-CVD policy table mapping source hue bands to target hue zones.
-4. **Compliance check** — The shifted hex is tested against the surface for contrast compliance. If it fails, ramp steps are walked outward from the default and the first compliant shifted step is used. If none pass, no CVD variant is emitted for that token.
-5. **Surfaces** — The same confusion detection and hue-shift logic runs over surfaces, writing `visionOverrides` that appear in `[data-vision="X"]` blocks.
+1. **Simulate** — Every token and surface hex is run through the Viénot 1999 / Brettel 1997 HPE pipeline for each CVD type.
+2. **Detect confusion** — Pairs that are distinguishable in normal vision but fall below the hue ΔE threshold under simulation are flagged.
+3. **Shift hues** — Affected ramps are shifted to safe hue zones defined by a per-CVD policy. When multiple ramps target the same zone, their hues are spread proportionally. Ramps that would crowd an existing color are placed in the available gap; if no gap exists, chroma is progressively reduced to maintain saturation-based differentiation.
+4. **Compliance check** — Each shifted foreground token is tested for contrast against its surface. If the shifted default step fails, ramp steps are walked outward until one passes. If none pass, no variant is emitted for that token.
+5. **Surfaces** — The same confusion detection and hue-shift logic runs over surfaces, writing per-theme CVD overrides into `[data-vision="X"]` blocks.
 
 ### Supported types
 
-| `data-vision` value | Type |
+| `data-vision` | Type |
 |---|---|
-| `protanopia` | Red-blind (L cone absent) |
-| `protanomaly` | Red-weak (L cone shifted) |
-| `deuteranopia` | Green-blind (M cone absent) |
-| `deuteranomaly` | Green-weak (M cone shifted) |
-| `tritanopia` | Blue-blind (S cone absent) |
-| `tritanomaly` | Blue-weak (S cone shifted) |
+| `protanopia` / `protanomaly` | Red-blind / Red-weak |
+| `deuteranopia` / `deuteranomaly` | Green-blind / Green-weak |
+| `tritanopia` / `tritanomaly` | Blue-blind / Blue-weak |
 
 Achromatopsia and blue cone monochromacy are not hue-shifted (full grayscale vision requires pattern/icon changes that CSS cannot provide).
 
 ### Generated CSS
 
-CVD variants are generated for **semantic tokens only** (foreground text, borders, focus rings). Surface backgrounds are intentionally excluded — shifting a surface hue would destroy its semantic meaning and invalidate the contrast of every token placed on top of it. The foreground tokens on those surfaces are already shifted to remain distinguishable.
-
 ```css
-/* Normal vision — default hues */
+/* Normal vision */
 :root {
-  --fg-success: #16a34a;
-  --fg-danger:  #dc2626;
+  --fg-success: #059669;  /* emerald step 6 */
+  --fg-danger:  #dc2626;  /* red step 6     */
+  --bg-danger-muted: #fee2e2;
 }
 
-/* Protanopia — red/green hues shifted to blue/violet zone */
-[data-vision="protanopia"] {
-  --fg-success: #1d6fa8;
-  --fg-danger:  #7c3aed;
-}
-```
-
-### Opt out
-
-```json
-"config": {
-  "cvd": { "enabled": false }
+/* Green-blind — danger/success shifted to blue/violet zones */
+[data-vision="deuteranopia"] {
+  --fg-success: #1d6fa8;  /* hue-shifted emerald */
+  --fg-danger:  #7c1fa0;  /* hue-shifted red     */
+  --bg-danger-muted: #e2d4ee; /* surface also shifted */
 }
 ```
 
 ### Hue band policy
 
-| CVD type | Confused bands | Shifted to |
+| CVD type | Confused source bands | Safe target zones |
 |---|---|---|
-| Protanopia / Protanomaly | Red (0°–90°) → Blue zone (230°–270°) | — |
-| — | Green/teal (90°–200°) → Violet zone (295°–335°) | — |
-| Deuteranopia / Deuteranomaly | Same bands as protanopia | Same targets |
-| Tritanopia / Tritanomaly | Yellow/amber (60°–110°) → Orange/red (15°–45°) | — |
-| — | Blue/cyan (190°–270°) → Violet (280°–320°) | — |
-
-When multiple ramps fall into the same confused band, their target hues are spread proportionally across the target range (sorted by original median hue) so they remain distinguishable from each other. Overflow ramps that exceed the range capacity have their chroma progressively reduced by 25% per overflow rank.
-
----
-
-## React Components & Hooks
-
-The `@gamut-all/react` package provides tools for using tokens in React applications.
-
-- **`TokenProvider`** — Top-level provider that manages the token registry and context.
-- **`TokenizedText`** — Automatically applies the correct foreground token and font-size context.
-- **`StackLayer`** — Increments `data-stack` and updates the internal elevation context.
-- **`useToken(tokenName)`** — Resolves a token value for the current context.
-- **`useTokenVars()`** — Returns all token values as a CSS-variable-compatible object.
-- **`withAutoContrast(Component)`** — HOC that ensures children meet contrast requirements.
+| Protanopia / Protanomaly | Red/warm (0°–90°) | Blue (230°–270°) |
+| | Green/teal (90°–200°) | Violet (295°–335°) |
+| Deuteranopia / Deuteranomaly | Red/warm (0°–90°) | Blue (230°–270°) |
+| | Green/teal (90°–200°) | Violet (295°–335°) |
+| Tritanopia / Tritanomaly | Yellow/amber (60°–110°) | Orange/red (15°–45°) |
+| | Blue/cyan (190°–270°) | Violet (280°–320°) |
 
 ---
 
-## Commands
+## Compliance
 
-### Workspace
+Tokens are evaluated at three levels:
+
+- **Text** (`foreground`) — WCAG 2.1: 4.5:1 AA / 7:1 AAA for text < 24px; 3:1 / 4.5:1 at 24px+. APCA: Lc 60/75/45/60 by size.
+- **UI component** (`nonText`) — WCAG 2.1: 3:1 AA / 4.5:1 AAA size-independent. APCA: Lc 30 AA / Lc 45 AAA.
+- **Decorative** — exempt from all thresholds.
+
+When a declared default step fails compliance, the engine automatically finds the nearest passing step. Manually pinned steps that fail are flagged as errors by `validateRegistry()`.
+
+---
+
+## Audit
 
 ```bash
-pnpm build      # build all packages
-pnpm test       # run all tests
-pnpm typecheck  # typecheck all packages
+# Every variant passes compliance — exits 1 on any failure
+gamut-audit --registry ./dist/tokens.js
+
+# Passing step ranges per token × surface
+gamut-audit --registry ./dist/tokens.js --report coverage --font-size 16
+
+# Scan a built HTML file for unknown data-theme, missing ancestors, unknown CSS vars
+gamut-audit --registry ./dist/tokens.js --html ./dist/index.html
 ```
 
-### Audit CLI
+See [`@gamut-all/audit`](./packages/audit) for the programmatic API and full CLI reference.
 
-```bash
-# Check every variant passes compliance — exits 1 on failure
-gamut-audit --registry ./dist/registry.json
+---
 
-# Coverage report — passing step ranges per token × surface
-gamut-audit --registry ./dist/registry.json --report coverage
+## Configuration reference
 
-# Audit a static HTML file against the registry
-gamut-audit --registry ./dist/registry.json --html ./dist/index.html
-```
+See [`@gamut-all/core`](./packages/core) for the full `TokenInput` schema. Key `config` fields:
+
+| Field | Default | Description |
+|---|---|---|
+| `wcagTarget` | `"AA"` | `"AA"` or `"AAA"` |
+| `complianceEngine` | `"wcag21"` | `"wcag21"` or `"apca"` |
+| `stepSelectionStrategy` | `"closest"` | `"closest"` or `"mirror-closest"` |
+| `stacks` | `{ root: 0 }` | Elevation offset per named stack |
+| `cvd.enabled` | `true` | Set `false` to disable CVD generation |
 
 ---
 
@@ -398,3 +349,11 @@ gamut-audit --registry ./dist/registry.json --html ./dist/index.html
 | [`@gamut-all/core`](./packages/core) | Token processing, registry, CSS generation, Vite plugin |
 | [`@gamut-all/react`](./packages/react) | `TokenProvider`, `StackLayer`, hooks, automatic contrast components |
 | [`@gamut-all/audit`](./packages/audit) | `gamut-audit` CLI for CI/CD compliance auditing |
+
+## Workspace commands
+
+```bash
+pnpm build      # build all packages
+pnpm test       # run all tests
+pnpm typecheck  # typecheck all packages
+```
