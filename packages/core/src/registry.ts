@@ -142,24 +142,34 @@ function hueInRanges(h: number, ranges: Array<[number, number]>): boolean {
   );
 }
 
-function autoCVDVariants(
-  variantMap: Map<VariantKey, ResolvedVariant>,
-  processed: ProcessedInput,
-  compliance: ComplianceEngine,
-  opts: Required<CVDOptions>,
-): void {
-  const cvdTypes: CVDType[] = [
-    'protanopia', 'protanomaly',
-    'deuteranopia', 'deuteranomaly',
-    'tritanopia', 'tritanomaly',
-  ];
-  const tokenNames = Array.from(processed.semantics.keys());
+// Returns the theme-resolved hex for a surface (auto-mirror or explicit override).
+function themeResolvedSurfaceHex(
+  surface: { hex: string; step: number; ramp: string; themeOverrides: Map<string, { hex: string }> },
+  themeName: string,
+  theme: ProcessedTheme,
+  ramps: Map<string, ProcessedRamp>,
+): string {
+  const override = surface.themeOverrides.get(themeName);
+  if (override) return override.hex;
+  if (theme.elevationDirection === 'lighter') {
+    const ramp = ramps.get(surface.ramp);
+    if (ramp) {
+      const maxStep = ramp.steps.length - 1;
+      const mirroredStep = maxStep - surface.step;
+      const mirroredData = ramp.steps[mirroredStep];
+      if (mirroredData && mirroredData.hex !== surface.hex) return mirroredData.hex;
+    }
+  }
+  return surface.hex;
+}
 
-  // Pre-compute which ramps are chromatic (non-gray) based on their median step,
-  // and record each ramp's median hue for policy-aware safe-family matching.
+function buildRampMetadata(ramps: Map<string, ProcessedRamp>): {
+  chromaticRamps: Set<string>;
+  rampMedianHues: Map<string, number>;
+} {
   const chromaticRamps = new Set<string>();
   const rampMedianHues = new Map<string, number>();
-  for (const [rampName, ramp] of processed.ramps) {
+  for (const [rampName, ramp] of ramps) {
     const mid = ramp.steps[Math.floor(ramp.steps.length / 2)];
     if (mid) {
       const { c, h } = hexToOklch(mid.hex);
@@ -167,6 +177,126 @@ function autoCVDVariants(
       rampMedianHues.set(rampName, h);
     }
   }
+  return { chromaticRamps, rampMedianHues };
+}
+
+function autoCVDSurfaces(
+  processed: ProcessedInput,
+  chromaticRamps: Set<string>,
+  rampMedianHues: Map<string, number>,
+  opts: Required<CVDOptions>,
+): void {
+  const cvdTypes: CVDType[] = [
+    'protanopia', 'protanomaly',
+    'deuteranopia', 'deuteranomaly',
+    'tritanopia', 'tritanomaly',
+  ];
+
+  for (const cvdType of cvdTypes) {
+    const visionMode = cvdType as VisionMode;
+    const policy = CVD_HUE_POLICY[cvdType];
+    if (!policy) continue; // achromatopsia — no hue fix
+
+    for (const [themeName, theme] of processed.themes) {
+      // Collect theme-resolved hex for each surface (applying auto-mirror or explicit override)
+      const themeHexes = new Map<string, string>();
+      for (const [surfaceName, surface] of processed.surfaces) {
+        themeHexes.set(surfaceName, themeResolvedSurfaceHex(surface, themeName, theme, processed.ramps));
+      }
+
+      // Simulate all surface hexes under CVD
+      const simHexes = new Map<string, string>();
+      for (const [surfaceName, hex] of themeHexes) {
+        simHexes.set(surfaceName, simulateCVD(hex, cvdType));
+      }
+
+      // Detect confused surface pairs by hue ΔE
+      const confused = new Set<string>();
+      const surfaceNames = Array.from(themeHexes.keys());
+      for (let i = 0; i < surfaceNames.length; i++) {
+        for (let j = i + 1; j < surfaceNames.length; j++) {
+          const nameI = surfaceNames[i]!;
+          const nameJ = surfaceNames[j]!;
+          const defaultHueDE = oklabHueDE(themeHexes.get(nameI)!, themeHexes.get(nameJ)!);
+          const cvdHueDE = oklabHueDE(simHexes.get(nameI)!, simHexes.get(nameJ)!);
+          if (defaultHueDE > opts.distinguishableThresholdDE && cvdHueDE < opts.confusionThresholdDE) {
+            confused.add(nameI);
+            confused.add(nameJ);
+          }
+        }
+      }
+
+      if (confused.size === 0) continue;
+
+      // Determine which ramps are affected — chromatic + falls in a confused hue band
+      const bandRamps: { A: string[]; B: string[] } = { A: [], B: [] };
+      for (const surfaceName of confused) {
+        const surface = processed.surfaces.get(surfaceName)!;
+        if (!chromaticRamps.has(surface.ramp)) continue;
+        const sourceHue = rampMedianHues.get(surface.ramp);
+        if (sourceHue === undefined) continue;
+        if (hueInRanges(sourceHue, policy.bandA.sourceRanges) && !bandRamps.A.includes(surface.ramp)) {
+          bandRamps.A.push(surface.ramp);
+        } else if (hueInRanges(sourceHue, policy.bandB.sourceRanges) && !bandRamps.B.includes(surface.ramp)) {
+          bandRamps.B.push(surface.ramp);
+        }
+      }
+
+      // Spread target hues across band ranges (same logic as autoCVDVariants)
+      const affectedRamps = new Map<string, { targetHue: number; chromaScale: number }>();
+      for (const [ramps, band] of [[bandRamps.A, policy.bandA], [bandRamps.B, policy.bandB]] as const) {
+        if (ramps.length === 0) continue;
+        const [lo, hi] = band.targetRange;
+        const sorted = [...ramps].sort((a, b) => (rampMedianHues.get(a) ?? 0) - (rampMedianHues.get(b) ?? 0));
+        const maxByHue = Math.floor((hi - lo) / MIN_HUE_GAP_DEG) + 1;
+        const hueCount = Math.min(sorted.length, maxByHue);
+        for (let i = 0; i < hueCount; i++) {
+          const frac = hueCount === 1 ? 0.5 : i / (hueCount - 1);
+          affectedRamps.set(sorted[i]!, { targetHue: lo + frac * (hi - lo), chromaScale: 1.0 });
+        }
+        for (let i = hueCount; i < sorted.length; i++) {
+          const overflowRank = i - hueCount + 1;
+          const boundaryHue = sorted[i]! > sorted[hueCount - 1]! ? hi : lo;
+          affectedRamps.set(sorted[i]!, { targetHue: boundaryHue, chromaScale: 1.0 - overflowRank * 0.25 });
+        }
+      }
+
+      if (affectedRamps.size === 0) continue;
+
+      // Apply hue shift to all surfaces on affected ramps
+      for (const [surfaceName, surface] of processed.surfaces) {
+        const rampTarget = affectedRamps.get(surface.ramp);
+        if (rampTarget === undefined) continue;
+        const { targetHue, chromaScale } = rampTarget;
+
+        const hex = themeHexes.get(surfaceName)!;
+        const shiftedHex = shiftHueToTarget(hex, targetHue, chromaScale);
+        if (shiftedHex === hex) continue;
+
+        // Store per-theme CVD override
+        if (!surface.visionOverrides.has(themeName)) {
+          surface.visionOverrides.set(themeName, new Map());
+        }
+        surface.visionOverrides.get(themeName)!.set(visionMode, { hex: shiftedHex });
+      }
+    }
+  }
+}
+
+function autoCVDVariants(
+  variantMap: Map<VariantKey, ResolvedVariant>,
+  processed: ProcessedInput,
+  compliance: ComplianceEngine,
+  opts: Required<CVDOptions>,
+  chromaticRamps: Set<string>,
+  rampMedianHues: Map<string, number>,
+): void {
+  const cvdTypes: CVDType[] = [
+    'protanopia', 'protanomaly',
+    'deuteranopia', 'deuteranomaly',
+    'tritanopia', 'tritanomaly',
+  ];
+  const tokenNames = Array.from(processed.semantics.keys());
 
   for (const cvdType of cvdTypes) {
     const visionMode = cvdType as VisionMode;
@@ -467,7 +597,9 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
       confusionThresholdDE: cvdOpts.confusionThresholdDE ?? 5,
       distinguishableThresholdDE: cvdOpts.distinguishableThresholdDE ?? 8,
     };
-    autoCVDVariants(variantMap, processed, compliance, resolvedCvdOpts);
+    const { chromaticRamps, rampMedianHues } = buildRampMetadata(processed.ramps);
+    autoCVDVariants(variantMap, processed, compliance, resolvedCvdOpts, chromaticRamps, rampMedianHues);
+    autoCVDSurfaces(processed, chromaticRamps, rampMedianHues, resolvedCvdOpts);
   }
 
   const meta = {

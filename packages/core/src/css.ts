@@ -208,6 +208,14 @@ export function generateCSS(registry: TokenRegistry): string {
         visionRootVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
       }
     }
+    // Surface CVD overrides for the default theme
+    for (const [surfaceName, surface] of registry.surfaces) {
+      const themeVisionMap = surface.visionOverrides.get(defaultTheme);
+      if (!themeVisionMap) continue;
+      const visionOverride = themeVisionMap.get(visionMode as VisionMode);
+      if (!visionOverride) continue;
+      visionRootVars.push(`  ${tokenToCssVar(surfaceName)}: ${visionOverride.hex};`);
+    }
 
     if (visionRootVars.length > 0) {
       lines.push(`[data-vision="${visionMode}"] {`);
@@ -228,6 +236,14 @@ export function generateCSS(registry: TokenRegistry): string {
         if (hex !== defaultBgValues.get(tokenName)) {
           visionBgVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
         }
+      }
+      // Surface CVD overrides for this theme
+      for (const [surfaceName, surface] of registry.surfaces) {
+        const themeVisionMap = surface.visionOverrides.get(themeName);
+        if (!themeVisionMap) continue;
+        const visionOverride = themeVisionMap.get(visionMode as VisionMode);
+        if (!visionOverride) continue;
+        visionBgVars.push(`  ${tokenToCssVar(surfaceName)}: ${visionOverride.hex};`);
       }
 
       if (visionBgVars.length > 0) {

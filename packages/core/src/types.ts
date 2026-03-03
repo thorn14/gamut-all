@@ -171,7 +171,7 @@ export interface ProcessedSurface {
   relativeLuminance: number;
   themeOverrides: Map<string, { step: number; hex: string; relativeLuminance: number }>;
   interactions: Record<string, { step: number; hex: string; relativeLuminance: number }>;
-  visionOverrides: Map<VisionMode, { hex: string }>;
+  visionOverrides: Map<string, Map<VisionMode, { hex: string }>>;
 }
 
 export interface ProcessedSemantic {

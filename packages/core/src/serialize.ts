@@ -40,7 +40,7 @@ interface SerializedSurface {
   relativeLuminance: number;
   themeOverrides: [string, { step: number; hex: string; relativeLuminance: number }][];
   interactions: Record<string, { step: number; hex: string; relativeLuminance: number }>;
-  visionOverrides: [string, { hex: string }][];
+  visionOverrides: [string, [string, { hex: string }][]][];
 }
 
 interface SerializedVariant {
@@ -111,7 +111,9 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
       relativeLuminance: surface.relativeLuminance,
       themeOverrides: Array.from(surface.themeOverrides.entries()),
       interactions: surface.interactions,
-      visionOverrides: Array.from(surface.visionOverrides.entries()),
+      visionOverrides: Array.from(surface.visionOverrides.entries()).map(
+        ([themeName, visionMap]) => [themeName, Array.from(visionMap.entries())] as [string, [string, { hex: string }][]]
+      ),
     }]
   );
 
@@ -164,7 +166,9 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
       relativeLuminance: surface.relativeLuminance,
       themeOverrides: new Map(surface.themeOverrides),
       interactions: surface.interactions,
-      visionOverrides: new Map(surface.visionOverrides) as Map<VisionMode, { hex: string }>,
+      visionOverrides: new Map(
+        surface.visionOverrides.map(([themeName, pairs]) => [themeName, new Map(pairs) as Map<VisionMode, { hex: string }>])
+      ),
     }])
   );
 
