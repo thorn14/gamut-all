@@ -109,6 +109,7 @@ export type SemanticInput = W3CAnnotations & {
   $type?: string;
   ramp: string;
   defaultStep?: number;
+  fontWeight?: number;
   decorative?: boolean;
   overrides?: ContextOverrideInput[];
   interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
@@ -183,6 +184,7 @@ export interface ProcessedSemantic {
   name: string;
   ramp: ProcessedRamp;
   defaultStep: number;
+  fontWeight: number;
   complianceTarget: 'text' | 'ui-component' | 'decorative';
   overrides: ContextOverrideInput[];
   interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }>;
@@ -201,6 +203,7 @@ export interface ResolvedVariant {
   ramp: string;
   step: number;
   hex: string;
+  fontWeight: number;
   compliance: ComplianceEvaluation;
 }
 
@@ -211,6 +214,7 @@ export interface TokenRegistry {
   surfaces: Map<string, ProcessedSurface>;
   stacks: Map<StackClass, number>;
   variantMap: Map<VariantKey, ResolvedVariant>;
+  tokenTargets: Map<string, 'text' | 'ui-component' | 'decorative'>;
   defaults: Record<string, string>;
   meta: {
     generatedAt: string;

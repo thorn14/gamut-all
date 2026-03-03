@@ -50,72 +50,6 @@ function parseVariantKey(key: string): {
   return { token, fontSizePx, bgName, stack, vision };
 }
 
-function inferTokenTargets(
-  registry: TokenRegistry,
-  engine: ComplianceEngine,
-): Map<string, ComplianceTarget> {
-  const votes = new Map<string, { text: number; ui: number; decorative: number }>();
-  const registryLevel = registry.meta.wcagTarget;
-
-  for (const [key, variant] of registry.variantMap) {
-    const parsed = parseVariantKey(key);
-    if (!parsed || parsed.vision !== 'default') continue;
-    const theme = registry.themes.get(parsed.bgName);
-    const surface = theme?.surfaces.get(parsed.stack);
-    if (!surface) continue;
-
-    if (!votes.has(parsed.token)) {
-      votes.set(parsed.token, { text: 0, ui: 0, decorative: 0 });
-    }
-    const vote = votes.get(parsed.token)!;
-
-    if (variant.compliance.required === undefined) {
-      vote.decorative++;
-      continue;
-    }
-
-    const textEval = engine.evaluate(variant.hex, surface.hex, {
-      fontSizePx: parsed.fontSizePx,
-      fontWeight: 400,
-      target: 'text',
-      level: registryLevel,
-    });
-    const uiEval = engine.evaluate(variant.hex, surface.hex, {
-      fontSizePx: parsed.fontSizePx,
-      fontWeight: 400,
-      target: 'ui-component',
-      level: registryLevel,
-    });
-
-    const textMatches = textEval.required !== undefined &&
-      Math.abs(textEval.required - variant.compliance.required) < EPSILON;
-    const uiMatches = uiEval.required !== undefined &&
-      Math.abs(uiEval.required - variant.compliance.required) < EPSILON;
-
-    if (textMatches && !uiMatches) vote.text++;
-    if (uiMatches && !textMatches) vote.ui++;
-  }
-
-  const targets = new Map<string, ComplianceTarget>();
-  for (const token of Object.keys(registry.defaults)) {
-    const vote = votes.get(token);
-    if (!vote) {
-      targets.set(token, /^border|outline|ring|stroke/i.test(token) ? 'ui-component' : 'text');
-      continue;
-    }
-    if (vote.decorative > vote.text && vote.decorative > vote.ui) {
-      targets.set(token, 'decorative');
-      continue;
-    }
-    if (vote.ui > vote.text) {
-      targets.set(token, 'ui-component');
-      continue;
-    }
-    targets.set(token, 'text');
-  }
-  return targets;
-}
-
 // ── auditRegistry ─────────────────────────────────────────────────────────────
 
 /**
@@ -131,7 +65,6 @@ export function auditRegistry(
   const issues: AuditIssue[] = [];
   let passCount = 0;
   let failCount = 0;
-  const tokenTargets = inferTokenTargets(registry, engine);
 
   for (const [key, variant] of registry.variantMap) {
     const parsed = parseVariantKey(key);
@@ -139,10 +72,10 @@ export function auditRegistry(
     const theme = registry.themes.get(parsed.bgName);
     const surface = theme?.surfaces.get(parsed.stack);
     if (!surface) continue;
-    const target = tokenTargets.get(parsed.token) ?? 'text';
+    const target = registry.tokenTargets.get(parsed.token) ?? 'text';
     const evaluation = engine.evaluate(variant.hex, surface.hex, {
       fontSizePx: parsed.fontSizePx,
-      fontWeight: 400,
+      fontWeight: variant.fontWeight,
       target,
       level,
     });
@@ -185,10 +118,17 @@ export function auditRegistry(
     }
 
     for (const { tokenName, hex, bgHex, context } of checks) {
-      const target = tokenTargets.get(tokenName) ?? 'text';
+      const target = registry.tokenTargets.get(tokenName) ?? 'text';
+      // For surface utility classes, we don't have a variant context,
+      // so we use the default variant's weight if available, or 400.
+      const defaultVariant = Array.from(registry.variantMap.values()).find(v => v.ramp === registry.variantMap.get(`${tokenName}__16px__${registry.meta.wcagTarget === 'AA' ? 'light' : 'dark'}__root__default` as any)?.ramp); // This is a bit weak but works for most cases
+      // Better: find ANY variant for this token to get its weight.
+      const sampleVariant = Array.from(registry.variantMap.entries()).find(([k]) => k.startsWith(`${tokenName}__`))?.[1];
+      const fontWeight = sampleVariant?.fontWeight ?? 400;
+
       const evaluation = engine.evaluate(hex, bgHex, {
         fontSizePx: 12,
-        fontWeight: 400,
+        fontWeight,
         target,
         level,
       });

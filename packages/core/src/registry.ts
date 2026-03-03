@@ -34,6 +34,7 @@ function buildVariantsForToken(
   tokenName: string,
   ramp: ProcessedRamp,
   defaultStep: number,
+  fontWeight: number,
   overrides: ProcessedSemantic['overrides'],
   themes: Map<string, ProcessedTheme>,
   compliance: ComplianceEngine,
@@ -49,6 +50,7 @@ function buildVariantsForToken(
   const autoRules = autoGenerateRules(
     ramp,
     defaultStep,
+    fontWeight,
     themes,
     compliance,
     wcagTarget,
@@ -72,7 +74,7 @@ function buildVariantsForToken(
 
         const context = {
           fontSizePx: parseInt(fontSize, 10),
-          fontWeight: 400,
+          fontWeight,
           target: complianceTarget,
           level: wcagTarget,
         };
@@ -84,6 +86,7 @@ function buildVariantsForToken(
           ramp: ramp.name,
           step,
           hex: stepData.hex,
+          fontWeight,
           compliance: complianceResult,
         });
       }
@@ -493,7 +496,7 @@ function autoCVDVariants(
 
             const ctx = {
               fontSizePx: parseInt(fontSize, 10),
-              fontWeight: 400,
+              fontWeight: semantic.fontWeight,
               target: semantic.complianceTarget,
               level: processed.config.wcagTarget,
             };
@@ -530,6 +533,7 @@ function autoCVDVariants(
               ramp: semantic.ramp.name,
               step: finalStep,
               hex: finalHex,
+              fontWeight: semantic.fontWeight,
               compliance: complianceResult,
             });
           }
@@ -555,7 +559,7 @@ function resolveTokensForSurfaceHex(
     if (semantic.complianceTarget === 'decorative') continue;
     const ctx = {
       fontSizePx: 12, // most restrictive — ensures readability at any font size
-      fontWeight: 400,
+      fontWeight: semantic.fontWeight,
       target: semantic.complianceTarget,
       level: wcagTarget,
     };
@@ -606,6 +610,7 @@ function computeSurfaceTokens(
 
 export function buildRegistry(processed: ProcessedInput, compliance: ComplianceEngine): TokenRegistry {
   const variantMap = new Map<VariantKey, ResolvedVariant>();
+  const tokenTargets = new Map<string, 'text' | 'ui-component' | 'decorative'>();
   const defaults: Record<string, string> = {};
   const themeFallbacks: Record<string, string[]> = {};
 
@@ -619,6 +624,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
   const stackNames = Array.from(processed.stacks.keys());
 
   for (const [tokenName, semantic] of processed.semantics) {
+    tokenTargets.set(tokenName, semantic.complianceTarget);
     // Set default hex
     const defaultStepData = semantic.ramp.steps[semantic.defaultStep];
     if (defaultStepData) {
@@ -630,6 +636,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
       tokenName,
       semantic.ramp,
       semantic.defaultStep,
+      semantic.fontWeight,
       semantic.overrides,
       processed.themes,
       compliance,
@@ -648,6 +655,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
     // bg's elevation direction so hover/active always differ visibly from the base.
     for (const [stateName, interaction] of Object.entries(semantic.interactions)) {
       const interactionTokenName = `${tokenName}-${stateName}`;
+      tokenTargets.set(interactionTokenName, semantic.complianceTarget);
       const interactionDelta = interaction.step - semantic.defaultStep;
 
       // Default fallback hex: use the absolute declared step (for resolveToken fallback chain).
@@ -681,7 +689,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
 
             const context = {
               fontSizePx: parseInt(fontSize, 10),
-              fontWeight: 400,
+              fontWeight: semantic.fontWeight,
               target: semantic.complianceTarget,
               level: wcagTarget,
             };
@@ -691,6 +699,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
               ramp: semantic.ramp.name,
               step: clampedStep,
               hex: stepData.hex,
+              fontWeight: semantic.fontWeight,
               compliance: complianceResult,
             });
           }
@@ -712,7 +721,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
               if (!stepData) continue;
               const context = {
                 fontSizePx: parseInt(fontSize, 10),
-                fontWeight: 400,
+                fontWeight: semantic.fontWeight,
                 target: semantic.complianceTarget,
                 level: wcagTarget,
               };
@@ -722,6 +731,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
                 ramp: semantic.ramp.name,
                 step: overrideStep,
                 hex: stepData.hex,
+                fontWeight: semantic.fontWeight,
                 compliance: complianceResult,
               });
             }
@@ -766,6 +776,7 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
     surfaces: processed.surfaces,
     stacks: processed.stacks,
     variantMap,
+    tokenTargets,
     defaults,
     meta,
   };

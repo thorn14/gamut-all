@@ -216,6 +216,8 @@ export function processInput(input: TokenInput): ProcessedInput {
       const resolvedComplianceTarget: 'text' | 'ui-component' | 'decorative' =
         semInput.decorative ? 'decorative' : complianceTarget;
 
+      const resolvedFontWeight = semInput.fontWeight ?? 400;
+
       // Build interactions
       const interactions: Record<string, { step: number; overrides: ContextOverrideInput[] }> = {};
       if (semInput.interactions) {
@@ -231,6 +233,7 @@ export function processInput(input: TokenInput): ProcessedInput {
         name: tokenName,
         ramp,
         defaultStep: resolvedDefaultStep,
+        fontWeight: resolvedFontWeight,
         complianceTarget: resolvedComplianceTarget,
         overrides: semInput.overrides ?? [],
         interactions,

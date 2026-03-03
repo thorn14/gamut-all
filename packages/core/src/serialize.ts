@@ -47,6 +47,7 @@ interface SerializedVariant {
   ramp: string;
   step: number;
   hex: string;
+  fontWeight: number;
   compliance: {
     pass: boolean;
     metric: string;
@@ -65,6 +66,7 @@ export interface SerializedRegistry {
   surfaces: [string, SerializedSurface][];
   stacks: [string, number][];
   variantMap: [string, SerializedVariant][];
+  tokenTargets: [string, 'text' | 'ui-component' | 'decorative'][];
   defaults: Record<string, string>;
 }
 
@@ -122,6 +124,7 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
       ramp: variant.ramp,
       step: variant.step,
       hex: variant.hex,
+      fontWeight: variant.fontWeight,
       compliance: variant.compliance,
     }]
   );
@@ -135,6 +138,7 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
     surfaces,
     stacks: Array.from(registry.stacks.entries()),
     variantMap,
+    tokenTargets: Array.from(registry.tokenTargets.entries()),
     defaults: registry.defaults,
   };
 }
@@ -177,7 +181,17 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
   );
 
   const variantMap = new Map<VariantKey, ResolvedVariant>(
-    serialized.variantMap.map(([key, variant]) => [key as VariantKey, variant])
+    serialized.variantMap.map(([key, variant]) => [key as VariantKey, {
+      ramp: variant.ramp,
+      step: variant.step,
+      hex: variant.hex,
+      fontWeight: variant.fontWeight,
+      compliance: variant.compliance,
+    }])
+  );
+
+  const tokenTargets = new Map<string, 'text' | 'ui-component' | 'decorative'>(
+    serialized.tokenTargets
   );
 
   return {
@@ -187,6 +201,7 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
     surfaces,
     stacks: new Map(serialized.stacks),
     variantMap,
+    tokenTargets,
     defaults: serialized.defaults,
     meta: serialized.meta,
   };

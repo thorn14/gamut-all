@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "pnpm --filter @gamut-all/core build && pnpm --filter @gamut-all/react build && vite build",
     "preview": "vite preview",
     "lint": "echo \"Demo lint not enforced in workspace check\"",
     "typecheck": "echo \"Demo typecheck not enforced in workspace check\"",

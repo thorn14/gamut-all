@@ -75,6 +75,7 @@ function deduplicateRules(rules: ContextRule[]): ContextRule[] {
 export function autoGenerateRules(
   tokenRamp: ProcessedRamp,
   defaultStep: number,
+  fontWeight: number,
   themes: Map<string, ProcessedTheme>,
   compliance: ComplianceEngine,
   wcagTarget: 'AA' | 'AAA',
@@ -113,7 +114,7 @@ export function autoGenerateRules(
       for (const fontSize of fontSizes) {
         const context = {
           fontSizePx: parseInt(fontSize, 10),
-          fontWeight: 400,
+          fontWeight,
           target: complianceTarget,
           level: wcagTarget,
         };
@@ -129,12 +130,22 @@ export function autoGenerateRules(
         // threshold — bypass mirror-closest (which overshoots for subtle borders).
         if (complianceTarget === 'ui-component') {
           const passesF = (hex: string) => compliance.evaluate(hex, surface.hex, context).pass;
-          const bgIsLight = surface.relativeLuminance > 0.5;
+
+          // Determine search direction toward the surface (for subtlety)
+          // by checking which ramp end is closer in luminance to the surface.
+          const firstStep = tokenRamp.steps[0]!;
+          const lastStep = tokenRamp.steps[tokenRamp.steps.length - 1]!;
+          const surfaceLum = surface.relativeLuminance;
+          const searchTowardSurface: 'lighter' | 'darker' =
+            Math.abs(firstStep.relativeLuminance - surfaceLum) < Math.abs(lastStep.relativeLuminance - surfaceLum)
+              ? 'lighter' // Index 0 is closer to surface → search lower indices
+              : 'darker'; // Index N-1 is closer to surface → search higher indices
+
           if (baseEval.pass) {
             // Default already passes: search toward the surface to find the most-subtle
             // passing step (avoid over-bright or over-dark borders).
             let minViableStep = defaultStep;
-            if (bgIsLight) {
+            if (searchTowardSurface === 'lighter') {
               for (let i = defaultStep - 1; i >= 0; i--) {
                 const s = tokenRamp.steps[i];
                 if (s && passesF(s.hex)) { minViableStep = i; } else { break; }
@@ -149,16 +160,15 @@ export function autoGenerateRules(
               rules.push({ bg: bgName, fontSize, stack, step: minViableStep });
             }
           } else {
-            // Default fails: find the closest passing step toward the needed direction.
-            const searchDirection = bgIsLight ? 'darker' : 'lighter';
-            const passingStep = findClosestPassingStep(tokenRamp, defaultStep, passesF, searchDirection);
+            // Default fails: search away from surface to find the closest passing step.
+            const searchAwayFromSurface = searchTowardSurface === 'lighter' ? 'darker' : 'lighter';
+            const passingStep = findClosestPassingStep(tokenRamp, defaultStep, passesF, searchAwayFromSurface);
             if (passingStep !== null && passingStep !== defaultStep) {
               rules.push({ bg: bgName, fontSize, stack, step: passingStep });
             }
           }
           continue;
-        }
-        // ── text tokens: existing correction logic ──────────────────────────
+        }        // ── text tokens: existing correction logic ──────────────────────────
         if (baseEval.pass) continue;
 
         const passes = (candidateHex: string) => compliance.evaluate(candidateHex, surface.hex, context).pass;
