@@ -475,14 +475,33 @@ function resolveTokensForSurfaceHex(
   const result = new Map<string, string>();
   for (const [tokenName, semantic] of processed.semantics) {
     if (semantic.complianceTarget === 'decorative') continue;
-    const passes = (candidateHex: string): boolean => compliance.evaluate(candidateHex, bgHex, {
+    const ctx = {
       fontSizePx: 12, // most restrictive — ensures readability at any font size
       fontWeight: 400,
       target: semantic.complianceTarget,
       level: wcagTarget,
-    }).pass;
-    const step = findClosestPassingStep(semantic.ramp, semantic.defaultStep, passes, 'either');
-    const hex = step !== null ? semantic.ramp.steps[step]?.hex : undefined;
+    };
+    const passes = (candidateHex: string): boolean =>
+      compliance.evaluate(candidateHex, bgHex, ctx).pass;
+
+    let step = findClosestPassingStep(semantic.ramp, semantic.defaultStep, passes, 'either');
+
+    // No passing step exists (e.g. same-ramp token on a mid-tone surface of that ramp).
+    // Fall back to the step with the highest contrast — best effort rather than leaving
+    // the token unset, which would inherit a potentially invisible theme value.
+    if (step === null) {
+      let bestStep = 0;
+      let bestValue = -Infinity;
+      for (let i = 0; i < semantic.ramp.steps.length; i++) {
+        const s = semantic.ramp.steps[i];
+        if (!s) continue;
+        const value = compliance.evaluate(s.hex, bgHex, ctx).value;
+        if (value > bestValue) { bestValue = value; bestStep = i; }
+      }
+      step = bestStep;
+    }
+
+    const hex = semantic.ramp.steps[step]?.hex;
     if (hex) result.set(tokenName, hex);
   }
   return result;
@@ -499,10 +518,10 @@ function computeSurfaceTokens(
     for (const [themeName, theme] of processed.themes) {
       const themeHex = themeResolvedSurfaceHex(surface, themeName, theme, processed.ramps);
       if (themeHex === surface.hex) continue;
-      surface.themeSurfaceTokens.set(
-        themeName,
-        resolveTokensForSurfaceHex(themeHex, processed, compliance, wcagTarget),
-      );
+      surface.themeSurfaceTokens.set(themeName, {
+        bgHex: themeHex,
+        tokens: resolveTokensForSurfaceHex(themeHex, processed, compliance, wcagTarget),
+      });
     }
   }
 }

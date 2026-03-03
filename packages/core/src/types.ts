@@ -174,8 +174,9 @@ export interface ProcessedSurface {
   visionOverrides: Map<string, Map<VisionMode, { hex: string }>>;
   /** Token name → resolved hex for the default surface hex. Populated by buildRegistry. */
   surfaceTokens: Map<string, string>;
-  /** Theme name → (token name → resolved hex) for themes whose surface hex differs from default. */
-  themeSurfaceTokens: Map<string, Map<string, string>>;
+  /** Theme name → { bgHex, tokens } for themes whose surface hex differs from default.
+   *  bgHex is the theme-resolved surface hex the tokens were computed against. */
+  themeSurfaceTokens: Map<string, { bgHex: string; tokens: Map<string, string> }>;
 }
 
 export interface ProcessedSemantic {

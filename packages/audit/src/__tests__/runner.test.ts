@@ -17,10 +17,23 @@ const input: TokenInput = {
       '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
       '#1e40af', '#1e3a8a',
     ],
+    green: [
+      '#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac',
+      '#4ade80', '#22c55e', '#16a34a', '#15803d',
+      '#166534', '#14532d',
+    ],
   },
   themes: {
     white: { ramp: 'neutral', step: 0, fallback: ['dark'] },
     dark:  { ramp: 'neutral', step: 8, fallback: ['white'] },
+  },
+  surfaces: {
+    // light surface — needs dark text
+    bgMuted:   { ramp: 'neutral', step: 1 },
+    // dark surface — needs light text
+    bgInverse: { ramp: 'neutral', step: 9 },
+    // saturated surface — classic contrast challenge
+    bgSuccess: { ramp: 'green',   step: 6 },
   },
   foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
@@ -49,9 +62,12 @@ describe('auditRegistry', () => {
     expect(result.passCount).toBeGreaterThan(0);
   });
 
-  it('variantsChecked equals registry variantMap size', () => {
+  it('variantsChecked includes both registry variants and surface tokens', () => {
     const result = auditRegistry(registry, wcag21);
-    expect(result.variantsChecked).toBe(registry.variantMap.size);
+    const surfaceTokenCount = Array.from(registry.surfaces.values())
+      .reduce((n, s) => n + s.surfaceTokens.size +
+        Array.from(s.themeSurfaceTokens.values()).reduce((m, { tokens }) => m + tokens.size, 0), 0);
+    expect(result.variantsChecked).toBe(registry.variantMap.size + surfaceTokenCount);
   });
 
   it('elementsChecked is 0 for registry audit', () => {
@@ -101,7 +117,33 @@ describe('auditRegistry', () => {
     const apcaRegistry = buildRegistry(processed, apca);
     const result = auditRegistry(apcaRegistry, apca);
     expect(result.issues).toHaveLength(0);
-    expect(result.variantsChecked).toBe(apcaRegistry.variantMap.size);
+    expect(result.variantsChecked).toBeGreaterThan(apcaRegistry.variantMap.size);
+  });
+
+  it('reports no non-compliant-surface-token issues for a correctly built registry', () => {
+    const result = auditRegistry(registry, wcag21);
+    const surfaceIssues = result.issues.filter(i => i.type === 'non-compliant-surface-token');
+    expect(surfaceIssues).toHaveLength(0);
+  });
+
+  it('detects non-compliant surface token when surfaceTokens is manually corrupted', () => {
+    // Inject a hex that fails contrast on bgSuccess (#16a34a) — mid-gray on mid-green
+    const corrupted = buildRegistry(processInput(input), wcag21);
+    corrupted.surfaces.get('bgSuccess')!.surfaceTokens.set('fgPrimary', '#a3a3a3');
+    const result = auditRegistry(corrupted, wcag21);
+    expect(result.issues.some(i => i.type === 'non-compliant-surface-token')).toBe(true);
+    const issue = result.issues.find(i => i.type === 'non-compliant-surface-token');
+    expect(issue!.message).toContain('fgPrimary');
+    expect(issue!.message).toContain('bgSuccess');
+    expect(issue!.severity).toBe('error');
+  });
+
+  it('surface token checks cover default hex and all theme-resolved hexes', () => {
+    // dark theme auto-mirrors bgMuted (step 1 → step 8) giving a dark surface.
+    // Both the default (light) and dark-theme-resolved (dark) hexes should be checked.
+    const bgMuted = registry.surfaces.get('bgMuted')!;
+    expect(bgMuted.surfaceTokens.size).toBeGreaterThan(0);
+    expect(bgMuted.themeSurfaceTokens.has('dark')).toBe(true);
   });
 
   it('AAA level produces more failures than AA for same registry', () => {

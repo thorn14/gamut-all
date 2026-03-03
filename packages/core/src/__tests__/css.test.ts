@@ -230,9 +230,9 @@ describe('surface utility classes', () => {
     // dark theme mirrors bgMain: step 1 → step 8 (#262626) — a dark surface needing light text
     const bgMain = registry.surfaces.get('bgMain')!;
     expect(bgMain.themeSurfaceTokens.has('dark')).toBe(true);
-    const darkTokens = bgMain.themeSurfaceTokens.get('dark')!;
+    const darkEntry = bgMain.themeSurfaceTokens.get('dark')!;
     // fgPrimary must differ between light and dark surface hexes
-    expect(darkTokens.get('fgPrimary')).not.toBe(bgMain.surfaceTokens.get('fgPrimary'));
+    expect(darkEntry.tokens.get('fgPrimary')).not.toBe(bgMain.surfaceTokens.get('fgPrimary'));
   });
 
   it('emits .bg-bgMain utility class in CSS', () => {
@@ -252,7 +252,7 @@ describe('surface utility classes', () => {
 
   it('[data-theme="dark"] .bg-bgMain contains different --fg-primary than default', () => {
     const defaultFg = registry.surfaces.get('bgMain')!.surfaceTokens.get('fgPrimary')!;
-    const darkFg = registry.surfaces.get('bgMain')!.themeSurfaceTokens.get('dark')!.get('fgPrimary')!;
+    const darkFg = registry.surfaces.get('bgMain')!.themeSurfaceTokens.get('dark')!.tokens.get('fgPrimary')!;
     expect(css).toContain(darkFg);
     expect(defaultFg).not.toBe(darkFg);
   });
@@ -261,11 +261,10 @@ describe('surface utility classes', () => {
     // If a theme happens to resolve to the same surface hex as the default,
     // no override block should be emitted (no noise in CSS).
     for (const [surfaceName, surface] of registry.surfaces) {
-      for (const [themeName, themeTokens] of surface.themeSurfaceTokens) {
+      for (const [themeName, { tokens: themeTokens }] of surface.themeSurfaceTokens) {
         const overrides = Array.from(themeTokens)
           .filter(([t, hex]) => hex !== surface.surfaceTokens.get(t));
         if (overrides.length === 0) {
-          // This theme's tokens are identical to defaults — should not appear in CSS
           const pattern = `[data-theme="${themeName}"] .bg-${surfaceName},`;
           expect(css).not.toContain(pattern);
         }

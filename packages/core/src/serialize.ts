@@ -172,7 +172,7 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
       // Not serialized — computed at build time by computeSurfaceTokens.
       // A deserialized registry is used for runtime resolution, not CSS generation.
       surfaceTokens: new Map(),
-      themeSurfaceTokens: new Map(),
+      themeSurfaceTokens: new Map<string, { bgHex: string; tokens: Map<string, string> }>(),
     }])
   );
 

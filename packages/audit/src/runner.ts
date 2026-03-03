@@ -3,12 +3,13 @@ import type { TokenRegistry, ComplianceEngine } from '@gamut-all/core';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type IssueType =
-  | 'non-compliant-variant'   // registry variant fails compliance
-  | 'unknown-theme'           // data-theme value not in registry
-  | 'missing-data-theme'      // element has no data-theme in ancestor chain
-  | 'unknown-surface'         // data-bg value not in registry surfaces
-  | 'missing-data-stack'      // token usage detected without data-stack (warning)
-  | 'unknown-token-var';      // CSS var references a token not in registry
+  | 'non-compliant-variant'       // registry variant fails compliance
+  | 'non-compliant-surface-token' // .bg-{name} utility class token fails compliance on its surface
+  | 'unknown-theme'               // data-theme value not in registry
+  | 'missing-data-theme'          // element has no data-theme in ancestor chain
+  | 'unknown-surface'             // data-bg value not in registry surfaces
+  | 'missing-data-stack'          // token usage detected without data-stack (warning)
+  | 'unknown-token-var';          // CSS var references a token not in registry
 
 export type IssueSeverity = 'error' | 'warning';
 
@@ -77,9 +78,57 @@ export function auditRegistry(
     }
   }
 
+  // ── Surface utility class token compliance ──────────────────────────────
+  // For each surface, verify every resolved token in surfaceTokens (and
+  // themeSurfaceTokens) actually passes compliance against its surface hex.
+  // This catches regressions where findClosestPassingStep returned null or
+  // landed on a step that doesn't meet the threshold at 12px.
+  for (const [surfaceName, surface] of registry.surfaces) {
+    const checks: Array<{ tokenName: string; hex: string; bgHex: string; context: string }> = [];
+
+    for (const [tokenName, hex] of surface.surfaceTokens) {
+      checks.push({ tokenName, hex, bgHex: surface.hex, context: surfaceName });
+    }
+    for (const [themeName, { bgHex, tokens }] of surface.themeSurfaceTokens) {
+      for (const [tokenName, hex] of tokens) {
+        checks.push({ tokenName, hex, bgHex, context: `${surfaceName}[${themeName}]` });
+      }
+    }
+
+    for (const { tokenName, hex, bgHex, context } of checks) {
+      const evaluation = engine.evaluate(hex, bgHex, {
+        fontSizePx: 12,
+        fontWeight: 400,
+        target: 'text',
+        level,
+      });
+      if (evaluation.pass) {
+        passCount++;
+      } else {
+        failCount++;
+        issues.push({
+          type: 'non-compliant-surface-token',
+          severity: 'error',
+          message: `Non-compliant surface token: ${tokenName} on .bg-${context} — ${engine.id} value ${evaluation.value.toFixed(2)} < required ${evaluation.required ?? '?'}`,
+          detail: {
+            surfaceName,
+            tokenName,
+            hex,
+            bgHex,
+            value: evaluation.value,
+            required: evaluation.required ?? 0,
+            engine: engine.id,
+          },
+        });
+      }
+    }
+  }
+
   return {
     issues,
-    variantsChecked: registry.variantMap.size,
+    variantsChecked: registry.variantMap.size + Array.from(registry.surfaces.values())
+      .reduce((n, s) => n + s.surfaceTokens.size +
+        Array.from(s.themeSurfaceTokens.values()).reduce((m, { tokens }) => m + tokens.size, 0), 0),
     elementsChecked: 0,
     passCount,
     failCount,

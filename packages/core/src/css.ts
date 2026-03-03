@@ -298,7 +298,7 @@ export function generateCSS(registry: TokenRegistry): string {
     lines.push('}');
     lines.push('');
 
-    for (const [themeName, themeTokens] of surface.themeSurfaceTokens) {
+    for (const [themeName, { tokens: themeTokens }] of surface.themeSurfaceTokens) {
       const overrides = Array.from(themeTokens)
         .filter(([t, hex]) => hex !== surface.surfaceTokens.get(t))
         .map(([t, hex]) => `  ${tokenToCssVar(t)}: ${hex};`);
