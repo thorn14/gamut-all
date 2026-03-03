@@ -98,7 +98,7 @@ describe('autoGenerateRules', () => {
   it('generates rules for failing contexts', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, 400, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // fgSecondary step 5 (#737373) may fail on some themes
     expect(Array.isArray(rules)).toBe(true);
   });
@@ -106,7 +106,7 @@ describe('autoGenerateRules', () => {
   it('generates rules across all stack levels', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, 400, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // Rules now span all stacks — each rule has a valid stack name
     const stacksInRules = new Set(rules.map(r => r.stack));
     expect(stacksInRules.size).toBeGreaterThan(1); // multiple stacks are represented
@@ -122,7 +122,7 @@ describe('autoGenerateRules', () => {
     const neutral = processed.ramps.get('neutral')!;
     // Use only white theme
     const onlyWhite = new Map([['white', processed.themes.get('white')!]]);
-    const rules = autoGenerateRules(neutral, 8, onlyWhite, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 8, 400, onlyWhite, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     expect(rules).toHaveLength(0);
   });
 
@@ -131,7 +131,7 @@ describe('autoGenerateRules', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
     const onlyDark = new Map([['dark', processed.themes.get('dark')!]]);
-    const rules = autoGenerateRules(neutral, 5, onlyDark, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, 400, onlyDark, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     // Should generate rules
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) {
@@ -142,7 +142,7 @@ describe('autoGenerateRules', () => {
   it('deduplicates rules with same bg+fontSize+stack', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
-    const rules = autoGenerateRules(neutral, 5, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, 400, processed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS);
     const keys = rules.map(r => `${r.bg}__${r.fontSize}__${r.stack}`);
     const unique = new Set(keys);
     expect(keys.length).toBe(unique.size);
@@ -156,6 +156,7 @@ describe('autoGenerateRules', () => {
     const rules = autoGenerateRules(
       neutral,
       8,
+      400,
       onlyDark,
       wcag21,
       'AA',
@@ -177,7 +178,7 @@ describe('autoGenerateRules', () => {
     const processed = getProcessed();
     const neutral = processed.ramps.get('neutral')!;
     const onlyWhite = new Map([['white', processed.themes.get('white')!]]);
-    const rules = autoGenerateRules(neutral, 5, onlyWhite, wcag21, 'AAA', ALL_FONT_SIZES, ALL_STACKS);
+    const rules = autoGenerateRules(neutral, 5, 400, onlyWhite, wcag21, 'AAA', ALL_FONT_SIZES, ALL_STACKS);
 
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) {
@@ -193,7 +194,7 @@ describe('autoGenerateRules — decorative', () => {
 
   it('returns no rules for decorative with closest strategy', () => {
     const rules = autoGenerateRules(
-      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'closest', 'decorative',
+      neutral, 3, 400, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'closest', 'decorative',
     );
     expect(rules).toHaveLength(0);
   });
@@ -211,7 +212,7 @@ describe('autoGenerateRules — decorative', () => {
     };
     const lightProcessed = processInput(lightOnlyInput);
     const rules = autoGenerateRules(
-      neutral, 3, lightProcessed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+      neutral, 3, 400, lightProcessed.themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
     );
     // white is a light bg (elevationDirection darker) — no mirror needed
     expect(rules).toHaveLength(0);
@@ -221,7 +222,7 @@ describe('autoGenerateRules — decorative', () => {
     // dark theme has elevationDirection 'lighter' — should mirror
     // step 3 on 10-step ramp mirrors to step 6
     const rules = autoGenerateRules(
-      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+      neutral, 3, 400, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
     );
     const darkRules = rules.filter(r => r.bg === 'dark');
     expect(darkRules.length).toBeGreaterThan(0);
@@ -230,7 +231,7 @@ describe('autoGenerateRules — decorative', () => {
 
   it('does not mirror step on light bg with mirror-closest strategy', () => {
     const rules = autoGenerateRules(
-      neutral, 3, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
+      neutral, 3, 400, themes, wcag21, 'AA', ALL_FONT_SIZES, ALL_STACKS, 'mirror-closest', 'decorative',
     );
     const whiteRules = rules.filter(r => r.bg === 'white');
     expect(whiteRules).toHaveLength(0);
