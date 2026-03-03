@@ -1,6 +1,6 @@
 {
   "name": "@gamut-all/audit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "description": "CI audit tooling for gamut-all design tokens",
