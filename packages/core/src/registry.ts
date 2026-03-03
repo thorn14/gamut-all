@@ -1,4 +1,4 @@
-import { autoGenerateRules, patchWithOverrides } from './rule-generator.js';
+import { autoGenerateRules, patchWithOverrides, findClosestPassingStep } from './rule-generator.js';
 import { djb2Hash } from './serialize.js';
 import { simulateCVD, oklabHueDE, shiftHueToTarget } from './utils/cvd.js';
 import { hexToOklch } from './utils/oklch.js';
@@ -462,6 +462,51 @@ function autoCVDVariants(
 }
 
 
+// ── computeSurfaceTokens ─────────────────────────────────────────────────────
+// For each surface, resolve all semantic tokens against that surface's hex so
+// the CSS emitter can generate .bg-{name} utility classes with correct vars.
+
+function resolveTokensForSurfaceHex(
+  bgHex: string,
+  processed: ProcessedInput,
+  compliance: ComplianceEngine,
+  wcagTarget: 'AA' | 'AAA',
+): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const [tokenName, semantic] of processed.semantics) {
+    if (semantic.complianceTarget === 'decorative') continue;
+    const passes = (candidateHex: string): boolean => compliance.evaluate(candidateHex, bgHex, {
+      fontSizePx: 12, // most restrictive — ensures readability at any font size
+      fontWeight: 400,
+      target: semantic.complianceTarget,
+      level: wcagTarget,
+    }).pass;
+    const step = findClosestPassingStep(semantic.ramp, semantic.defaultStep, passes, 'either');
+    const hex = step !== null ? semantic.ramp.steps[step]?.hex : undefined;
+    if (hex) result.set(tokenName, hex);
+  }
+  return result;
+}
+
+function computeSurfaceTokens(
+  processed: ProcessedInput,
+  compliance: ComplianceEngine,
+  wcagTarget: 'AA' | 'AAA',
+): void {
+  for (const surface of processed.surfaces.values()) {
+    surface.surfaceTokens = resolveTokensForSurfaceHex(surface.hex, processed, compliance, wcagTarget);
+
+    for (const [themeName, theme] of processed.themes) {
+      const themeHex = themeResolvedSurfaceHex(surface, themeName, theme, processed.ramps);
+      if (themeHex === surface.hex) continue;
+      surface.themeSurfaceTokens.set(
+        themeName,
+        resolveTokensForSurfaceHex(themeHex, processed, compliance, wcagTarget),
+      );
+    }
+  }
+}
+
 export function buildRegistry(processed: ProcessedInput, compliance: ComplianceEngine): TokenRegistry {
   const variantMap = new Map<VariantKey, ResolvedVariant>();
   const defaults: Record<string, string> = {};
@@ -601,6 +646,8 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
     autoCVDVariants(variantMap, processed, compliance, resolvedCvdOpts, chromaticRamps, rampMedianHues);
     autoCVDSurfaces(processed, chromaticRamps, rampMedianHues, resolvedCvdOpts);
   }
+
+  computeSurfaceTokens(processed, compliance, wcagTarget);
 
   const meta = {
     generatedAt: new Date().toISOString(),

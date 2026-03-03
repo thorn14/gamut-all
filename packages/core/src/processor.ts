@@ -185,6 +185,8 @@ export function processInput(input: TokenInput): ProcessedInput {
       themeOverrides,
       interactions,
       visionOverrides: new Map(),
+      surfaceTokens: new Map(),
+      themeSurfaceTokens: new Map(),
     });
   }
 

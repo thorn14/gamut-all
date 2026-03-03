@@ -169,6 +169,10 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
       visionOverrides: new Map(
         surface.visionOverrides.map(([themeName, pairs]) => [themeName, new Map(pairs) as Map<VisionMode, { hex: string }>])
       ),
+      // Not serialized — computed at build time by computeSurfaceTokens.
+      // A deserialized registry is used for runtime resolution, not CSS generation.
+      surfaceTokens: new Map(),
+      themeSurfaceTokens: new Map(),
     }])
   );
 

@@ -172,6 +172,10 @@ export interface ProcessedSurface {
   themeOverrides: Map<string, { step: number; hex: string; relativeLuminance: number }>;
   interactions: Record<string, { step: number; hex: string; relativeLuminance: number }>;
   visionOverrides: Map<string, Map<VisionMode, { hex: string }>>;
+  /** Token name → resolved hex for the default surface hex. Populated by buildRegistry. */
+  surfaceTokens: Map<string, string>;
+  /** Theme name → (token name → resolved hex) for themes whose surface hex differs from default. */
+  themeSurfaceTokens: Map<string, Map<string, string>>;
 }
 
 export interface ProcessedSemantic {

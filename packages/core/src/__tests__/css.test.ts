@@ -185,3 +185,91 @@ describe('generateCSS', () => {
     expect(darkBlock).toContain('#fafafa');
   });
 });
+
+describe('surface utility classes', () => {
+  it('populates surfaceTokens on each surface after buildRegistry', () => {
+    const bgMain = registry.surfaces.get('bgMain')!;
+    const bgInverse = registry.surfaces.get('bgInverse')!;
+    expect(bgMain.surfaceTokens.size).toBeGreaterThan(0);
+    expect(bgInverse.surfaceTokens.size).toBeGreaterThan(0);
+  });
+
+  it('resolves fgPrimary to dark text on bgMain (light surface)', () => {
+    // bgMain = neutral step 1 = #f5f5f5 (near white) — needs dark text
+    const bgMain = registry.surfaces.get('bgMain')!;
+    const fgHex = bgMain.surfaceTokens.get('fgPrimary')!;
+    expect(fgHex).toBeDefined();
+    // Dark text on light bg: relative luminance of resolved step < 0.2
+    const r = parseInt(fgHex.slice(1, 3), 16) / 255;
+    const g = parseInt(fgHex.slice(3, 5), 16) / 255;
+    const b = parseInt(fgHex.slice(5, 7), 16) / 255;
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    expect(lum).toBeLessThan(0.2);
+  });
+
+  it('resolves fgPrimary to light text on bgInverse (dark surface)', () => {
+    // bgInverse = neutral step 9 = #171717 (near black) — needs light text
+    const bgInverse = registry.surfaces.get('bgInverse')!;
+    const fgHex = bgInverse.surfaceTokens.get('fgPrimary')!;
+    expect(fgHex).toBeDefined();
+    // Light text on dark bg: relative luminance > 0.5
+    const r = parseInt(fgHex.slice(1, 3), 16) / 255;
+    const g = parseInt(fgHex.slice(3, 5), 16) / 255;
+    const b = parseInt(fgHex.slice(5, 7), 16) / 255;
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    expect(lum).toBeGreaterThan(0.5);
+  });
+
+  it('bgMain and bgInverse resolve fgPrimary to opposite ends of the ramp', () => {
+    const lightFg = registry.surfaces.get('bgMain')!.surfaceTokens.get('fgPrimary')!;
+    const darkFg = registry.surfaces.get('bgInverse')!.surfaceTokens.get('fgPrimary')!;
+    expect(lightFg).not.toBe(darkFg);
+  });
+
+  it('themeSurfaceTokens has dark entry for bgMain (auto-mirror changes hex)', () => {
+    // dark theme mirrors bgMain: step 1 → step 8 (#262626) — a dark surface needing light text
+    const bgMain = registry.surfaces.get('bgMain')!;
+    expect(bgMain.themeSurfaceTokens.has('dark')).toBe(true);
+    const darkTokens = bgMain.themeSurfaceTokens.get('dark')!;
+    // fgPrimary must differ between light and dark surface hexes
+    expect(darkTokens.get('fgPrimary')).not.toBe(bgMain.surfaceTokens.get('fgPrimary'));
+  });
+
+  it('emits .bg-bgMain utility class in CSS', () => {
+    expect(css).toContain('.bg-bgMain,');
+    expect(css).toContain('.hover\\:bg-bgMain:hover {');
+  });
+
+  it('.bg-bgMain contains background var and resolved token vars', () => {
+    const classBlock = css.split('.bg-bgMain,')[1]?.split('}')[0] ?? '';
+    expect(classBlock).toContain('background: var(--bg-main)');
+    expect(classBlock).toContain('--fg-primary:');
+  });
+
+  it('emits [data-theme="dark"] override block for .bg-bgMain', () => {
+    expect(css).toContain('[data-theme="dark"] .bg-bgMain,');
+  });
+
+  it('[data-theme="dark"] .bg-bgMain contains different --fg-primary than default', () => {
+    const defaultFg = registry.surfaces.get('bgMain')!.surfaceTokens.get('fgPrimary')!;
+    const darkFg = registry.surfaces.get('bgMain')!.themeSurfaceTokens.get('dark')!.get('fgPrimary')!;
+    expect(css).toContain(darkFg);
+    expect(defaultFg).not.toBe(darkFg);
+  });
+
+  it('does not emit [data-theme] override when surface hex is identical across themes', () => {
+    // If a theme happens to resolve to the same surface hex as the default,
+    // no override block should be emitted (no noise in CSS).
+    for (const [surfaceName, surface] of registry.surfaces) {
+      for (const [themeName, themeTokens] of surface.themeSurfaceTokens) {
+        const overrides = Array.from(themeTokens)
+          .filter(([t, hex]) => hex !== surface.surfaceTokens.get(t));
+        if (overrides.length === 0) {
+          // This theme's tokens are identical to defaults — should not appear in CSS
+          const pattern = `[data-theme="${themeName}"] .bg-${surfaceName},`;
+          expect(css).not.toContain(pattern);
+        }
+      }
+    }
+  });
+});

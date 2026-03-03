@@ -277,5 +277,39 @@ export function generateCSS(registry: TokenRegistry): string {
     }
   }
 
+  // ── Surface utility classes ──────────────────────────────────────────────
+  // .bg-{name} and .hover\:bg-{name}:hover set the background and cascade all
+  // semantic token vars resolved against that surface's hex. This means
+  // hover:bg-bgSuccess automatically makes text readable — no per-child overrides.
+  for (const [surfaceName, surface] of registry.surfaces) {
+    if (surface.surfaceTokens.size === 0) continue;
+
+    const bgVar = tokenToCssVar(surfaceName);
+    const cls = `bg-${surfaceName}`;
+    const hoverCls = `hover\\:bg-${surfaceName}:hover`;
+
+    const defaultVars = [
+      `  background: var(${bgVar});`,
+      ...Array.from(surface.surfaceTokens, ([t, hex]) => `  ${tokenToCssVar(t)}: ${hex};`),
+    ];
+    lines.push(`.${cls},`);
+    lines.push(`.${hoverCls} {`);
+    lines.push(...defaultVars);
+    lines.push('}');
+    lines.push('');
+
+    for (const [themeName, themeTokens] of surface.themeSurfaceTokens) {
+      const overrides = Array.from(themeTokens)
+        .filter(([t, hex]) => hex !== surface.surfaceTokens.get(t))
+        .map(([t, hex]) => `  ${tokenToCssVar(t)}: ${hex};`);
+      if (overrides.length === 0) continue;
+      lines.push(`[data-theme="${themeName}"] .${cls},`);
+      lines.push(`[data-theme="${themeName}"] .${hoverCls} {`);
+      lines.push(...overrides);
+      lines.push('}');
+      lines.push('');
+    }
+  }
+
   return lines.join('\n');
 }
