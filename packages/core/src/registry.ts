@@ -8,6 +8,7 @@ import type {
   ProcessedRamp,
   ProcessedTheme,
   ProcessedSemantic,
+  ProcessedSurface,
   ComplianceEngine,
   TokenRegistry,
   ResolvedVariant,
@@ -330,6 +331,7 @@ function autoCVDVariants(
   }
 }
 
+
 export function buildRegistry(processed: ProcessedInput, compliance: ComplianceEngine): TokenRegistry {
   const variantMap = new Map<VariantKey, ResolvedVariant>();
   const defaults: Record<string, string> = {};
@@ -460,11 +462,12 @@ export function buildRegistry(processed: ProcessedInput, compliance: ComplianceE
   // Auto-generate CVD variants after all default variants are populated
   const cvdOpts = processed.config.cvd ?? {};
   if (cvdOpts.enabled !== false) {
-    autoCVDVariants(variantMap, processed, compliance, {
+    const resolvedCvdOpts: Required<CVDOptions> = {
       enabled: true,
       confusionThresholdDE: cvdOpts.confusionThresholdDE ?? 5,
       distinguishableThresholdDE: cvdOpts.distinguishableThresholdDE ?? 8,
-    });
+    };
+    autoCVDVariants(variantMap, processed, compliance, resolvedCvdOpts);
   }
 
   const meta = {

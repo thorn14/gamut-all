@@ -147,12 +147,44 @@ export function processInput(input: TokenInput): ProcessedInput {
     if (!step) {
       throw new Error(`Surface "${name}" step ${s.step} out of bounds`);
     }
+
+    // Resolve per-theme step overrides
+    const themeOverrides = new Map<string, { step: number; hex: string; relativeLuminance: number }>();
+    for (const [themeName, override] of Object.entries(s.themes ?? {})) {
+      const overrideStep = ramp.steps[override.step];
+      if (!overrideStep) {
+        throw new Error(`Surface "${name}" theme "${themeName}" step ${override.step} out of bounds`);
+      }
+      themeOverrides.set(themeName, {
+        step: override.step,
+        hex: overrideStep.hex,
+        relativeLuminance: overrideStep.relativeLuminance,
+      });
+    }
+
+    // Resolve interaction states
+    const interactions: Record<string, { step: number; hex: string; relativeLuminance: number }> = {};
+    for (const [stateName, state] of Object.entries(s.interactions ?? {})) {
+      const stateStep = ramp.steps[state.step];
+      if (!stateStep) {
+        throw new Error(`Surface "${name}" interaction "${stateName}" step ${state.step} out of bounds`);
+      }
+      interactions[stateName] = {
+        step: state.step,
+        hex: stateStep.hex,
+        relativeLuminance: stateStep.relativeLuminance,
+      };
+    }
+
     processedSurfaces.set(name, {
       name,
       ramp: s.ramp,
       step: s.step,
       hex: step.hex,
       relativeLuminance: step.relativeLuminance,
+      themeOverrides,
+      interactions,
+      visionOverrides: new Map(),
     });
   }
 

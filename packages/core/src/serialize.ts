@@ -1,4 +1,4 @@
-import type { TokenRegistry, VariantKey, ResolvedVariant, ProcessedRamp, ProcessedTheme, ProcessedSurface } from './types.js';
+import type { TokenRegistry, VariantKey, ResolvedVariant, ProcessedRamp, ProcessedTheme, ProcessedSurface, VisionMode } from './types.js';
 
 // ── djb2 hash — avoids node:crypto dependency ────────────────────────────────
 
@@ -38,6 +38,9 @@ interface SerializedSurface {
   step: number;
   hex: string;
   relativeLuminance: number;
+  themeOverrides: [string, { step: number; hex: string; relativeLuminance: number }][];
+  interactions: Record<string, { step: number; hex: string; relativeLuminance: number }>;
+  visionOverrides: [string, { hex: string }][];
 }
 
 interface SerializedVariant {
@@ -106,6 +109,9 @@ export function serializeRegistry(registry: TokenRegistry): SerializedRegistry {
       step: surface.step,
       hex: surface.hex,
       relativeLuminance: surface.relativeLuminance,
+      themeOverrides: Array.from(surface.themeOverrides.entries()),
+      interactions: surface.interactions,
+      visionOverrides: Array.from(surface.visionOverrides.entries()),
     }]
   );
 
@@ -150,7 +156,16 @@ export function deserializeRegistry(serialized: SerializedRegistry): TokenRegist
   );
 
   const surfaces = new Map<string, ProcessedSurface>(
-    serialized.surfaces.map(([key, surface]) => [key, surface])
+    serialized.surfaces.map(([key, surface]) => [key, {
+      name: surface.name,
+      ramp: surface.ramp,
+      step: surface.step,
+      hex: surface.hex,
+      relativeLuminance: surface.relativeLuminance,
+      themeOverrides: new Map(surface.themeOverrides),
+      interactions: surface.interactions,
+      visionOverrides: new Map(surface.visionOverrides) as Map<VisionMode, { hex: string }>,
+    }])
   );
 
   const variantMap = new Map<VariantKey, ResolvedVariant>(

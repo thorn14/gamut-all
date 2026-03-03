@@ -101,6 +101,8 @@ export interface ThemeInput extends W3CAnnotations {
 export interface SurfaceInput extends W3CAnnotations {
   ramp: string;
   step: number;
+  themes?: Record<string, { step: number }>;
+  interactions?: Record<string, { step: number }>;
 }
 
 export type SemanticInput = W3CAnnotations & {
@@ -167,6 +169,9 @@ export interface ProcessedSurface {
   step: number;
   hex: string;
   relativeLuminance: number;
+  themeOverrides: Map<string, { step: number; hex: string; relativeLuminance: number }>;
+  interactions: Record<string, { step: number; hex: string; relativeLuminance: number }>;
+  visionOverrides: Map<VisionMode, { hex: string }>;
 }
 
 export interface ProcessedSemantic {

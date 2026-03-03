@@ -92,7 +92,29 @@
           "$deprecated":  { "$ref": "#/$defs/W3CAnnotations/properties/$deprecated" },
           "$extensions":  { "$ref": "#/$defs/W3CAnnotations/properties/$extensions" },
           "ramp": { "type": "string" },
-          "step": { "type": "integer", "minimum": 0 }
+          "step": { "type": "integer", "minimum": 0 },
+          "themes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["step"],
+              "additionalProperties": false,
+              "properties": {
+                "step": { "type": "integer", "minimum": 0 }
+              }
+            }
+          },
+          "interactions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["step"],
+              "additionalProperties": false,
+              "properties": {
+                "step": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
         }
       }
     },

@@ -30,6 +30,18 @@ const input: TokenInput = {
     white: { ramp: 'neutral', step: 0 },
     dark: { ramp: 'neutral', step: 8 },
   },
+  surfaces: {
+    bgMain: {
+      ramp: 'neutral',
+      step: 1,
+      interactions: { hover: { step: 2 }, active: { step: 3 } },
+    },
+    bgInverse: {
+      ramp: 'neutral',
+      step: 9,
+      themes: { dark: { step: 0 } },
+    },
+  },
   foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgError: {
@@ -101,14 +113,15 @@ describe('generateCSS', () => {
     expect(css).toContain('[data-theme="dark"]');
   });
 
-  it('vision mode block uses descendant combinator (space)', () => {
-    // [data-vision="deuteranopia"] [data-theme="dark"] — SPACE between selectors
-    const hasDescendant = css.includes('[data-vision="deuteranopia"] [data-theme=');
-    const hasCompound = css.includes('[data-vision="deuteranopia"][data-theme=');
-    // If vision+theme combo exists, it must use descendant combinator
-    if (hasDescendant || hasCompound) {
-      expect(hasDescendant).toBe(true);
-      expect(hasCompound).toBe(false);
+  it('vision mode block uses correct selector order: [data-theme] before [data-vision]', () => {
+    // data-theme is set on <html>, data-vision is on the TokenProvider descendant div.
+    // Correct order: [data-theme="X"] [data-vision="Y"] (data-vision inside data-theme).
+    // Wrong order:   [data-vision="Y"] [data-theme="X"] (would require data-theme inside data-vision).
+    const hasCorrect = /\[data-theme="[^"]+"\] \[data-vision="[^"]+"\]/.test(css);
+    const hasWrong = /\[data-vision="[^"]+"\] \[data-theme="[^"]+"\]/.test(css);
+    if (hasCorrect || hasWrong) {
+      expect(hasCorrect).toBe(true);
+      expect(hasWrong).toBe(false);
     }
   });
 
@@ -149,5 +162,26 @@ describe('generateCSS', () => {
     // A standalone block starts a new line with [data-theme="white"] at the very beginning.
     const standaloneBlock = /^\[data-theme="white"\]\s*\{/m.test(css);
     expect(standaloneBlock).toBe(false);
+  });
+
+  it('emits --bg-main surface var in :root', () => {
+    expect(css).toContain('--bg-main:');
+  });
+
+  it('emits --bg-inverse surface var in :root', () => {
+    expect(css).toContain('--bg-inverse:');
+  });
+
+  it('emits surface interaction vars in :root', () => {
+    expect(css).toContain('--bg-main-hover:');
+    expect(css).toContain('--bg-main-active:');
+  });
+
+  it('emits surface theme override in [data-theme="dark"] block', () => {
+    // bgInverse has themes: { dark: { step: 0 } } — step 0 (#fafafa) vs default step 9 (#171717)
+    // So [data-theme="dark"] must contain --bg-inverse: #fafafa
+    const darkBlock = css.split(/\[data-theme="dark"\]\s*\{/)[1]?.split('}')[0] ?? '';
+    expect(darkBlock).toContain('--bg-inverse:');
+    expect(darkBlock).toContain('#fafafa');
   });
 });

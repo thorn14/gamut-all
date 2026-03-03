@@ -180,3 +180,105 @@ describe('processInput', () => {
   });
 
 });
+
+describe('processInput — surfaces', () => {
+  const baseInput: TokenInput = {
+    primitives: {
+      neutral: [
+        '#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4',
+        '#a3a3a3', '#737373', '#525252', '#404040',
+        '#262626', '#171717',
+      ].map(cv),
+    },
+    themes: {
+      light: { ramp: 'neutral', step: 0 },
+      dark:  { ramp: 'neutral', step: 8 },
+    },
+    foreground: {
+      fgPrimary: { ramp: 'neutral', defaultStep: 8 },
+    },
+  };
+
+  it('processes a simple surface', () => {
+    const input: TokenInput = {
+      ...baseInput,
+      surfaces: {
+        bgMain: { ramp: 'neutral', step: 1 },
+      },
+    };
+    const result = processInput(input);
+    const surface = result.surfaces.get('bgMain');
+    expect(surface).toBeDefined();
+    expect(surface!.hex).toBe('#f5f5f5');
+    expect(surface!.themeOverrides.size).toBe(0);
+    expect(surface!.interactions).toEqual({});
+    expect(surface!.visionOverrides.size).toBe(0);
+  });
+
+  it('resolves surface interactions with correct hex', () => {
+    const input: TokenInput = {
+      ...baseInput,
+      surfaces: {
+        bgMain: {
+          ramp: 'neutral',
+          step: 1,
+          interactions: { hover: { step: 2 }, active: { step: 3 } },
+        },
+      },
+    };
+    const result = processInput(input);
+    const surface = result.surfaces.get('bgMain')!;
+    expect(surface.interactions['hover']!.step).toBe(2);
+    expect(surface.interactions['hover']!.hex).toBe('#e5e5e5');
+    expect(surface.interactions['active']!.step).toBe(3);
+    expect(surface.interactions['active']!.hex).toBe('#d4d4d4');
+  });
+
+  it('resolves surface theme overrides with correct hex', () => {
+    const input: TokenInput = {
+      ...baseInput,
+      surfaces: {
+        bgInverse: {
+          ramp: 'neutral',
+          step: 9,
+          themes: { dark: { step: 0 } },
+        },
+      },
+    };
+    const result = processInput(input);
+    const surface = result.surfaces.get('bgInverse')!;
+    expect(surface.hex).toBe('#171717');
+    const darkOverride = surface.themeOverrides.get('dark');
+    expect(darkOverride).toBeDefined();
+    expect(darkOverride!.step).toBe(0);
+    expect(darkOverride!.hex).toBe('#fafafa');
+  });
+
+  it('throws on out-of-bounds interaction step', () => {
+    const input: TokenInput = {
+      ...baseInput,
+      surfaces: {
+        bgMain: {
+          ramp: 'neutral',
+          step: 1,
+          interactions: { hover: { step: 99 } },
+        },
+      },
+    };
+    expect(() => processInput(input)).toThrow(/bgMain.*hover.*99/);
+  });
+
+  it('throws on out-of-bounds theme override step', () => {
+    const input: TokenInput = {
+      ...baseInput,
+      surfaces: {
+        bgInverse: {
+          ramp: 'neutral',
+          step: 9,
+          themes: { dark: { step: 99 } },
+        },
+      },
+    };
+    expect(() => processInput(input)).toThrow(/bgInverse.*dark.*99/);
+  });
+});

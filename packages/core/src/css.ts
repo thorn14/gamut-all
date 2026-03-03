@@ -88,6 +88,15 @@ export function generateCSS(registry: TokenRegistry): string {
   }
   rootVars.push('');
 
+  // --bg-{surface} vars (and interaction states)
+  for (const [surfaceName, surface] of registry.surfaces) {
+    rootVars.push(`  ${tokenToCssVar(surfaceName)}: ${surface.hex};`);
+    for (const [state, stateData] of Object.entries(surface.interactions)) {
+      rootVars.push(`  ${tokenToCssVar(`${surfaceName}-${state}`)}: ${stateData.hex};`);
+    }
+  }
+  rootVars.push('');
+
   // --{ramp}-{step} vars
   for (const [rampName, ramp] of registry.ramps) {
     for (const step of ramp.steps) {
@@ -116,6 +125,37 @@ export function generateCSS(registry: TokenRegistry): string {
     // --bg-surface for this theme at root stack
     const themeRootSurface = theme.surfaces.get('root');
     bgVars.push(`  --bg-surface: ${themeRootSurface ? `var(--${theme.ramp}-${themeRootSurface.step})` : `var(--bg-${themeName})`};`);
+
+    // Surface vars for this theme: explicit override > auto-mirror > skip
+    // Auto-mirror: when the surface ramp matches the theme ramp and the theme is dark
+    // (elevationDirection === 'lighter'), mirror the step across the ramp midpoint,
+    // exactly as mirror-closest does for semantic tokens.
+    for (const [surfaceName, surface] of registry.surfaces) {
+      const override = surface.themeOverrides.get(themeName);
+      if (override) {
+        if (override.hex !== surface.hex) {
+          bgVars.push(`  ${tokenToCssVar(surfaceName)}: ${override.hex};`);
+        }
+        continue;
+      }
+      if (theme.elevationDirection === 'lighter') {
+        const ramp = registry.ramps.get(surface.ramp);
+        if (!ramp) continue;
+        const maxStep = ramp.steps.length - 1;
+        const mirroredStep = maxStep - surface.step;
+        const mirroredData = ramp.steps[mirroredStep];
+        if (mirroredData && mirroredData.hex !== surface.hex) {
+          bgVars.push(`  ${tokenToCssVar(surfaceName)}: ${mirroredData.hex};`);
+          for (const [state, stateData] of Object.entries(surface.interactions)) {
+            const mirroredInteractionStep = maxStep - stateData.step;
+            const mirroredInteractionData = ramp.steps[mirroredInteractionStep];
+            if (mirroredInteractionData && mirroredInteractionData.hex !== stateData.hex) {
+              bgVars.push(`  ${tokenToCssVar(`${surfaceName}-${state}`)}: ${mirroredInteractionData.hex};`);
+            }
+          }
+        }
+      }
+    }
 
     lines.push(`[data-theme="${themeName}"] {`);
     lines.push(...bgVars);
@@ -157,8 +197,8 @@ export function generateCSS(registry: TokenRegistry): string {
   const visionModes = ALL_VISION_MODES.filter(m => m !== 'default');
 
   for (const visionMode of visionModes) {
-    const hasVision = Array.from(registry.variantMap.keys()).some(k => k.endsWith(`__${visionMode}`));
-    if (!hasVision) continue;
+    const hasVisionVariants = Array.from(registry.variantMap.keys()).some(k => k.endsWith(`__${visionMode}`));
+    if (!hasVisionVariants) continue;
 
     // [data-vision="X"] — overrides for defaultTheme, root stack
     const visionRootValues = resolveAll(defaultTheme, 'root', visionMode);
@@ -168,6 +208,7 @@ export function generateCSS(registry: TokenRegistry): string {
         visionRootVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
       }
     }
+
     if (visionRootVars.length > 0) {
       lines.push(`[data-vision="${visionMode}"] {`);
       lines.push(...visionRootVars);
@@ -175,7 +216,9 @@ export function generateCSS(registry: TokenRegistry): string {
       lines.push('');
     }
 
-    // [data-vision="X"] [data-theme="Y"] — DESCENDANT combinator
+    // [data-theme="Y"] [data-vision="X"] — correct DOM order.
+    // data-theme is set on <html>, data-vision is on the TokenProvider descendant div,
+    // so data-vision is INSIDE data-theme in the DOM tree.
     for (const [themeName] of registry.themes) {
       const visionBgValues = resolveAll(themeName, 'root', visionMode);
       const defaultBgValues = resolveAll(themeName, 'root', 'default');
@@ -188,15 +231,15 @@ export function generateCSS(registry: TokenRegistry): string {
       }
 
       if (visionBgVars.length > 0) {
-        lines.push(`[data-vision="${visionMode}"] [data-theme="${themeName}"] {`);
+        lines.push(`[data-theme="${themeName}"] [data-vision="${visionMode}"] {`);
         lines.push(...visionBgVars);
         lines.push('}');
         lines.push('');
       }
 
-      // [data-vision="X"] [data-theme="Y"] [data-stack="Z"] — vision overrides on elevated stack elements.
+      // [data-theme="Y"] [data-vision="X"] [data-stack="Z"] — vision overrides on elevated stack elements.
       // Required because [data-theme] [data-stack] sets vars directly on the data-stack element, which
-      // shadows inherited vars from the data-theme element — vision overrides must target the same element.
+      // shadows inherited vars from the data-vision element — vision overrides must target the same element.
       for (const stack of nonRootStacks) {
         const visionStackValues = resolveAll(themeName, stack, visionMode);
         const defaultStackValues = resolveAll(themeName, stack, 'default');
@@ -209,7 +252,7 @@ export function generateCSS(registry: TokenRegistry): string {
         }
 
         if (visionStackVars.length > 0) {
-          lines.push(`[data-vision="${visionMode}"] [data-theme="${themeName}"] [data-stack="${stack}"] {`);
+          lines.push(`[data-theme="${themeName}"] [data-vision="${visionMode}"] [data-stack="${stack}"] {`);
           lines.push(...visionStackVars);
           lines.push('}');
           lines.push('');
