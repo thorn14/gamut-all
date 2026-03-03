@@ -30,6 +30,92 @@ export interface AuditResult {
   failCount: number;
 }
 
+type ComplianceTarget = 'text' | 'ui-component' | 'decorative';
+
+const EPSILON = 1e-6;
+
+function parseVariantKey(key: string): {
+  token: string;
+  fontSizePx: number;
+  bgName: string;
+  stack: string;
+  vision: string;
+} | null {
+  const parts = key.split('__');
+  if (parts.length !== 5) return null;
+  const [token, fontSize, bgName, stack, vision] = parts;
+  if (!token || !fontSize || !bgName || !stack || !vision) return null;
+  const fontSizePx = parseInt(fontSize, 10);
+  if (!Number.isFinite(fontSizePx)) return null;
+  return { token, fontSizePx, bgName, stack, vision };
+}
+
+function inferTokenTargets(
+  registry: TokenRegistry,
+  engine: ComplianceEngine,
+): Map<string, ComplianceTarget> {
+  const votes = new Map<string, { text: number; ui: number; decorative: number }>();
+  const registryLevel = registry.meta.wcagTarget;
+
+  for (const [key, variant] of registry.variantMap) {
+    const parsed = parseVariantKey(key);
+    if (!parsed || parsed.vision !== 'default') continue;
+    const theme = registry.themes.get(parsed.bgName);
+    const surface = theme?.surfaces.get(parsed.stack);
+    if (!surface) continue;
+
+    if (!votes.has(parsed.token)) {
+      votes.set(parsed.token, { text: 0, ui: 0, decorative: 0 });
+    }
+    const vote = votes.get(parsed.token)!;
+
+    if (variant.compliance.required === undefined) {
+      vote.decorative++;
+      continue;
+    }
+
+    const textEval = engine.evaluate(variant.hex, surface.hex, {
+      fontSizePx: parsed.fontSizePx,
+      fontWeight: 400,
+      target: 'text',
+      level: registryLevel,
+    });
+    const uiEval = engine.evaluate(variant.hex, surface.hex, {
+      fontSizePx: parsed.fontSizePx,
+      fontWeight: 400,
+      target: 'ui-component',
+      level: registryLevel,
+    });
+
+    const textMatches = textEval.required !== undefined &&
+      Math.abs(textEval.required - variant.compliance.required) < EPSILON;
+    const uiMatches = uiEval.required !== undefined &&
+      Math.abs(uiEval.required - variant.compliance.required) < EPSILON;
+
+    if (textMatches && !uiMatches) vote.text++;
+    if (uiMatches && !textMatches) vote.ui++;
+  }
+
+  const targets = new Map<string, ComplianceTarget>();
+  for (const token of Object.keys(registry.defaults)) {
+    const vote = votes.get(token);
+    if (!vote) {
+      targets.set(token, /^border|outline|ring|stroke/i.test(token) ? 'ui-component' : 'text');
+      continue;
+    }
+    if (vote.decorative > vote.text && vote.decorative > vote.ui) {
+      targets.set(token, 'decorative');
+      continue;
+    }
+    if (vote.ui > vote.text) {
+      targets.set(token, 'ui-component');
+      continue;
+    }
+    targets.set(token, 'text');
+  }
+  return targets;
+}
+
 // ── auditRegistry ─────────────────────────────────────────────────────────────
 
 /**
@@ -45,18 +131,21 @@ export function auditRegistry(
   const issues: AuditIssue[] = [];
   let passCount = 0;
   let failCount = 0;
+  const tokenTargets = inferTokenTargets(registry, engine);
 
   for (const [key, variant] of registry.variantMap) {
-    const parts = key.split('__');
-    const fontSizeStr = parts[1] ?? '16px';
-    const bgName = parts[2] ?? '';
-    const bg = registry.themes.get(bgName);
-
-    if (!bg) continue;
-
-    const fontSizePx = parseInt(fontSizeStr, 10);
-    const context = { fontSizePx, fontWeight: 400, target: 'text' as const, level };
-    const evaluation = engine.evaluate(variant.hex, bg.hex, context);
+    const parsed = parseVariantKey(key);
+    if (!parsed) continue;
+    const theme = registry.themes.get(parsed.bgName);
+    const surface = theme?.surfaces.get(parsed.stack);
+    if (!surface) continue;
+    const target = tokenTargets.get(parsed.token) ?? 'text';
+    const evaluation = engine.evaluate(variant.hex, surface.hex, {
+      fontSizePx: parsed.fontSizePx,
+      fontWeight: 400,
+      target,
+      level,
+    });
 
     if (evaluation.pass) {
       passCount++;
@@ -69,7 +158,7 @@ export function auditRegistry(
         detail: {
           key,
           hex: variant.hex,
-          bgHex: bg.hex,
+          bgHex: surface.hex,
           value: evaluation.value,
           required: evaluation.required ?? 0,
           engine: engine.id,
@@ -96,10 +185,11 @@ export function auditRegistry(
     }
 
     for (const { tokenName, hex, bgHex, context } of checks) {
+      const target = tokenTargets.get(tokenName) ?? 'text';
       const evaluation = engine.evaluate(hex, bgHex, {
         fontSizePx: 12,
         fontWeight: 400,
-        target: 'text',
+        target,
         level,
       });
       if (evaluation.pass) {
@@ -229,6 +319,24 @@ export function auditDOM(
           detail: { varName, tag: el.tagName.toLowerCase() },
         });
       }
+    }
+
+    // Check ancestor chain for data-stack only when token CSS vars are used.
+    let hasStackAncestor = el.hasAttribute('data-stack');
+    if (!hasStackAncestor) {
+      let ancestor: Element | null = el.parentElement;
+      while (ancestor) {
+        if (ancestor.hasAttribute('data-stack')) { hasStackAncestor = true; break; }
+        ancestor = ancestor.parentElement;
+      }
+    }
+    if (!hasStackAncestor) {
+      issues.push({
+        type: 'missing-data-stack',
+        severity: 'warning',
+        message: 'Element uses token CSS vars but has no data-stack in ancestor chain (root assumed)',
+        detail: { tag: el.tagName.toLowerCase() },
+      });
     }
   }
 

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { ComponentType, FC } from 'react';
+import type { ComponentType, FC, CSSProperties } from 'react';
 import { useResolvedTokens, useTokenVars } from '../hooks.js';
 
 interface AutoContrastOptions {
@@ -20,7 +20,8 @@ export function withAutoContrast<P extends object>(
       tokenProps[token] = resolved[token] ?? '';
     }
 
-    const mergedStyle = cssVars;
+    const incomingStyle = ((props as { style?: CSSProperties }).style ?? {});
+    const mergedStyle = { ...incomingStyle, ...cssVars };
     const propsWithTokens = { ...props, ...tokenProps, style: mergedStyle } as P;
 
     return (

@@ -315,13 +315,13 @@ When a declared default step fails compliance, the engine automatically finds th
 
 ```bash
 # Every variant passes compliance — exits 1 on any failure
-gamut-audit --registry ./dist/tokens.js
+gamut-audit --registry ./dist/registry.json
 
 # Passing step ranges per token × surface
-gamut-audit --registry ./dist/tokens.js --report coverage --font-size 16
+gamut-audit --registry ./dist/registry.json --report coverage --font-size 16
 
 # Scan a built HTML file for unknown data-theme, missing ancestors, unknown CSS vars
-gamut-audit --registry ./dist/tokens.js --html ./dist/index.html
+gamut-audit --registry ./dist/registry.json --html ./dist/index.html
 ```
 
 See [`@gamut-all/audit`](./packages/audit) for the programmatic API and full CLI reference.
@@ -354,6 +354,16 @@ See [`@gamut-all/core`](./packages/core) for the full `TokenInput` schema. Key `
 
 ```bash
 pnpm build      # build all packages
+pnpm lint       # lint all workspaces
 pnpm test       # run all tests
 pnpm typecheck  # typecheck all packages
+pnpm check      # lint + typecheck + test + format check
+pnpm demo       # run the portfolio demo app (examples/demo)
+pnpm demo:build # build the demo app
+pnpm demo:preview # preview the built demo
 ```
+
+## Demo hosting
+
+The demo is a static Vite app in [`examples/demo`](./examples/demo) and is not published as a package (`private: true`).
+Host `examples/demo/dist` on Vercel, Netlify, or GitHub Pages.

@@ -57,7 +57,7 @@ export default {
 ```
 
 Generated files:
-- **`tokens.ts`** — serialised `TokenRegistry` objects (one per engine × level combination)
+- **`tokens.ts`** — a serialised `TokenRegistry` object for the configured engine/level
 - **`tokens.css`** — CSS custom properties for all contexts
 - **`token-types.d.ts`** — TypeScript types for all token names
 
@@ -88,7 +88,7 @@ import { resolveToken } from '@gamut-all/core';
 
 const hex = resolveToken('fgDanger', {
   bgClass: 'dark',
-  stackDepth: 1,
+  stackDepth: 'root',
   fontSize: '16px',
   visionMode: 'default',
 }, registry);
@@ -96,7 +96,7 @@ const hex = resolveToken('fgDanger', {
 
 ### `validateRegistry(registry)`
 
-Returns `{ errors, warnings }`. Errors indicate manually configured steps that fail compliance; warnings flag interaction variants and decorative tokens.
+Returns `{ errors, warnings }`. Non-compliant variants are reported as warnings.
 
 ### `serializeRegistry` / `deserializeRegistry`
 
@@ -157,7 +157,6 @@ interface ThemeInput {
   ramp: string;           // Name of a primitives ramp
   step: number;           // Base step index into the ramp
   fallback?: string[];    // Ordered fallback chain for unresolved tokens
-  themes?: Record<string, { step: number }>; // Per-surface step overrides
 }
 ```
 

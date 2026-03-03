@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { designTokensPlugin } from '../vite/plugin.js';
 import { hexToColorValue } from '../utils/oklch.js';
@@ -132,5 +132,89 @@ describe('designTokensPlugin', () => {
     const content = readFileSync(typesFile, 'utf-8');
     expect(content).toContain('InteractionTokenName');
     expect(content).toContain('fgLink-hover');
+  });
+
+  it('uses apca engine when config.complianceEngine is apca', () => {
+    const apcaTokens = JSON.stringify({
+      config: { complianceEngine: 'apca' },
+      primitives: {
+        neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
+      },
+      themes: {
+        white: { ramp: 'neutral', step: 0 },
+        dark: { ramp: 'neutral', step: 8 },
+      },
+      foreground: {
+        fgPrimary: { ramp: 'neutral', defaultStep: 8 },
+      },
+    });
+
+    writeFileSync(tokensFile, apcaTokens, 'utf-8');
+    const apcaPlugin = designTokensPlugin({
+      input: 'tokens.json',
+      outputDir: './generated',
+      emitTypes: false,
+      emitCSS: false,
+    });
+    const hook = apcaPlugin.configResolved as ((config: unknown) => void) | undefined;
+    hook?.({
+      root: tmpDir,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    const content = readFileSync(join(outputDir, 'tokens.ts'), 'utf-8');
+    expect(content).toContain('"complianceEngine":"apca"');
+  });
+
+  it('watches both tokens.json and external $primitives file', () => {
+    const primitivesFile = join(tmpDir, 'primitives.json');
+    writeFileSync(primitivesFile, JSON.stringify({
+      $schema: 'node_modules/@gamut-all/core/primitives-schema.json',
+      neutral: ['#fafafa', '#f5f5f5', '#e5e5e5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040', '#262626', '#171717'].map(cv),
+      blue: ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a'].map(cv),
+    }), 'utf-8');
+
+    writeFileSync(tokensFile, JSON.stringify({
+      $primitives: './primitives.json',
+      primitives: {},
+      themes: {
+        white: { ramp: 'neutral', step: 0 },
+        dark: { ramp: 'neutral', step: 8 },
+      },
+      foreground: {
+        fgPrimary: { ramp: 'neutral', defaultStep: 8 },
+        fgLink: { ramp: 'blue', defaultStep: 6 },
+      },
+    }), 'utf-8');
+
+    const watchPlugin = designTokensPlugin({
+      input: 'tokens.json',
+      outputDir: './generated',
+    });
+    const hook = watchPlugin.configResolved as ((config: unknown) => void) | undefined;
+    hook?.({
+      root: tmpDir,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    const added: string[] = [];
+    const onHandlers: Record<string, ((file: string) => void) | undefined> = {};
+    const configureServer = watchPlugin.configureServer as ((server: unknown) => void) | undefined;
+    configureServer?.({
+      watcher: {
+        add: (file: string) => { added.push(file); },
+        on: (event: string, cb: (file: string) => void) => { onHandlers[event] = cb; },
+      },
+      moduleGraph: {
+        getModuleById: () => null,
+        invalidateModule: () => {},
+      },
+      hot: { send: () => {} },
+      config: { logger: { info: () => {}, error: () => {} } },
+    });
+
+    expect(added).toContain(tokensFile);
+    expect(added).toContain(primitivesFile);
+    expect(typeof onHandlers.change).toBe('function');
   });
 });

@@ -17,13 +17,13 @@ npm install playwright
 ## CLI
 
 ```sh
-gamut-audit --registry ./dist/tokens.js [options]
+gamut-audit --registry ./dist/registry.json [options]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--registry` | _(required)_ | Path to a JS/TS file that exports `TokenRegistry` |
-| `--html` | — | HTML file or URL to scan with `auditDOM` |
+| `--registry` | _(required)_ | Path to a serialized registry JSON file |
+| `--html` | — | HTML file to scan with `auditDOM` |
 | `--engine` | `wcag21` | `wcag21` or `apca` |
 | `--level` | `AA` | `AA` or `AAA` |
 | `--format` | `text` | `text` or `json` |

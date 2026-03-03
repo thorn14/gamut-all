@@ -4,9 +4,16 @@
   "packageManager": "pnpm@10.30.2",
   "scripts": {
     "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "echo \"Formatter not configured in this workspace yet\"",
+    "format:check": "echo \"Formatter check not configured in this workspace yet\"",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm format:check",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "dev": "turbo run dev --parallel"
+    "dev": "turbo run dev --parallel",
+    "demo": "pnpm --filter @gamut-all/demo dev",
+    "demo:build": "pnpm --filter @gamut-all/demo build",
+    "demo:preview": "pnpm --filter @gamut-all/demo preview"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

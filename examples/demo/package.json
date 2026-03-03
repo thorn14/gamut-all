@@ -1,0 +1,30 @@
+{
+  "name": "@gamut-all/demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "echo \"Demo lint not enforced in workspace check\"",
+    "typecheck": "echo \"Demo typecheck not enforced in workspace check\"",
+    "test": "echo \"No demo tests\""
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.2.0",
+    "@gamut-all/core": "workspace:*",
+    "@gamut-all/react": "workspace:*",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.0"
+  }
+}

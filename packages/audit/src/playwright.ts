@@ -30,6 +30,17 @@ interface ExtractedElement {
   inlineStyle: string;
 }
 
+interface MinimalElement {
+  tagName: string;
+  parentElement: MinimalElement | null;
+  getAttribute(name: string): string | null;
+  hasAttribute(name: string): boolean;
+}
+
+interface MinimalRoot extends MinimalElement {
+  querySelectorAll(selector: string): MinimalElement[];
+}
+
 /**
  * Audits a live URL by launching a Playwright browser, extracting DOM context
  * attributes and inline style CSS vars, then running the DOM audit.
@@ -98,17 +109,40 @@ export async function auditURL(
   }
 }
 
+class SyntheticElement implements MinimalElement {
+  tagName: string;
+  parentElement: SyntheticElement | null;
+  private attrs: Map<string, string>;
+
+  constructor(tag: string, parent: SyntheticElement | null = null, attrs: Record<string, string> = {}) {
+    this.tagName = tag.toUpperCase();
+    this.parentElement = parent;
+    this.attrs = new Map(Object.entries(attrs));
+  }
+
+  getAttribute(name: string): string | null {
+    return this.attrs.get(name) ?? null;
+  }
+
+  hasAttribute(name: string): boolean {
+    return this.attrs.has(name);
+  }
+}
+
 /** Builds a flat synthetic DOM from extracted elements for the runner. */
 function buildSyntheticDOM(elements: ExtractedElement[]): Element {
-  const root = document.createElement('div');
-  for (const el of elements) {
-    const node = document.createElement(el.tag);
-    if (el.dataTheme !== null) node.setAttribute('data-theme', el.dataTheme);
-    if (el.dataBg !== null) node.setAttribute('data-bg', el.dataBg);
-    if (el.dataStack !== null) node.setAttribute('data-stack', el.dataStack);
-    if (el.dataVision !== null) node.setAttribute('data-vision', el.dataVision);
-    if (el.inlineStyle) node.setAttribute('style', el.inlineStyle);
-    root.appendChild(node);
-  }
-  return root;
+  const root = new SyntheticElement('div');
+  const nodes = elements.map((el) => {
+    const attrs: Record<string, string> = {};
+    if (el.dataTheme !== null) attrs['data-theme'] = el.dataTheme;
+    if (el.dataBg !== null) attrs['data-bg'] = el.dataBg;
+    if (el.dataStack !== null) attrs['data-stack'] = el.dataStack;
+    if (el.dataVision !== null) attrs['data-vision'] = el.dataVision;
+    if (el.inlineStyle) attrs.style = el.inlineStyle;
+    return new SyntheticElement(el.tag, root, attrs);
+  });
+
+  const syntheticRoot = root as unknown as MinimalRoot;
+  syntheticRoot.querySelectorAll = (selector: string) => (selector === '*' ? nodes : []);
+  return syntheticRoot as unknown as Element;
 }

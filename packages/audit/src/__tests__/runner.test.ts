@@ -33,14 +33,14 @@ const input: TokenInput = {
     // dark surface — needs light text
     bgInverse: { ramp: 'neutral', step: 9 },
     // saturated surface — classic contrast challenge
-    bgSuccess: { ramp: 'green',   step: 6 },
+    bgSuccess: { ramp: 'green',   step: 8 },
   },
   foreground: {
     fgPrimary: { ramp: 'neutral', defaultStep: 8 },
     fgLink: {
-      ramp: 'blue',
-      defaultStep: 6,
-      interactions: { hover: { step: 8 } },
+      ramp: 'neutral',
+      defaultStep: 7,
+      interactions: { hover: { step: 9 } },
     },
   },
   // Limit to root stack only — elevated stacks land on mid-tone surfaces where
@@ -49,8 +49,7 @@ const input: TokenInput = {
   config: { stacks: { root: 0 } },
 };
 
-const processed = processInput(input);
-const registry = buildRegistry(processed, wcag21);
+const registry = buildRegistry(processInput(input), wcag21);
 
 // ── auditRegistry ─────────────────────────────────────────────────────────────
 
@@ -114,7 +113,7 @@ describe('auditRegistry', () => {
   });
 
   it('works with apca engine', () => {
-    const apcaRegistry = buildRegistry(processed, apca);
+    const apcaRegistry = buildRegistry(processInput(input), apca);
     const result = auditRegistry(apcaRegistry, apca);
     expect(result.issues).toHaveLength(0);
     expect(result.variantsChecked).toBeGreaterThan(apcaRegistry.variantMap.size);
@@ -217,6 +216,19 @@ describe('auditDOM', () => {
     root.appendChild(parent);
     const result = auditDOM(root, registry);
     expect(result.issues.some(i => i.type === 'unknown-token-var')).toBe(true);
+  });
+
+  it('flags token CSS var usage without a data-stack ancestor', () => {
+    const root = document.createElement('div');
+    const parent = document.createElement('div');
+    parent.setAttribute('data-theme', 'white');
+    const child = document.createElement('p');
+    child.setAttribute('style', 'color: var(--fg-primary)');
+    parent.appendChild(child);
+    root.appendChild(parent);
+
+    const result = auditDOM(root, registry);
+    expect(result.issues.some(i => i.type === 'missing-data-stack')).toBe(true);
   });
 
   it('does not flag non-token CSS vars', () => {

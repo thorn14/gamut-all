@@ -5,7 +5,8 @@
   "type": "module",
   "files": [
     "dist",
-    "schema.json"
+    "schema.json",
+    "primitives-schema.json"
   ],
   "publishConfig": {
     "access": "public"
@@ -21,12 +22,14 @@
       "import": "./dist/vite/plugin.js",
       "require": "./dist/vite/plugin.cjs"
     },
-    "./schema.json": "./schema.json"
+    "./schema.json": "./schema.json",
+    "./primitives-schema.json": "./primitives-schema.json"
   },
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

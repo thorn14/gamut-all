@@ -1,5 +1,4 @@
 import type { Plugin, ResolvedConfig } from 'vite';
-import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { processInput } from '../processor.js';
@@ -7,6 +6,7 @@ import { buildRegistry, validateRegistry } from '../registry.js';
 import { generateCSS } from '../css.js';
 import { serializeRegistry } from '../serialize.js';
 import { wcag21 } from '../compliance/wcag21.js';
+import { apca } from '../compliance/apca.js';
 import type { TokenInput, TokenRegistry, ColorValue } from '../types.js';
 
 const VIRTUAL_MODULE_ID = 'virtual:design-tokens';
@@ -52,13 +52,15 @@ function buildAndEmit(
   outputDir: string,
   options: DesignTokensPluginOptions,
   log: (msg: string) => void,
-): TokenRegistry {
+): { registry: TokenRegistry; watchedFiles: string[] } {
   const raw = readFileSync(inputPath, 'utf-8');
   const tokenInput = JSON.parse(raw) as TokenInput & { $primitives?: string };
+  const watchedFiles = [inputPath];
 
   // Resolve $primitives external file
   if (tokenInput['$primitives']) {
     const primitivesPath = resolve(dirname(inputPath), tokenInput['$primitives']);
+    watchedFiles.push(primitivesPath);
     const primitivesRaw = readFileSync(primitivesPath, 'utf-8');
     const primitivesData = JSON.parse(primitivesRaw) as Record<string, (string | ColorValue)[]>;
     // Strip JSON-schema metadata keys before merging
@@ -72,7 +74,8 @@ function buildAndEmit(
 
   const input = tokenInput as TokenInput;
   const processed = processInput(input);
-  const registry = buildRegistry(processed, wcag21);
+  const engine = processed.config.complianceEngine === 'apca' ? apca : wcag21;
+  const registry = buildRegistry(processed, engine);
   const validation = validateRegistry(registry);
 
   // Log summary
@@ -112,7 +115,7 @@ function buildAndEmit(
     writeFileSync(join(outputDir, 'token-types.d.ts'), types, 'utf-8');
   }
 
-  return registry;
+  return { registry, watchedFiles };
 }
 
 export function designTokensPlugin(options: DesignTokensPluginOptions): Plugin {
@@ -120,6 +123,7 @@ export function designTokensPlugin(options: DesignTokensPluginOptions): Plugin {
   let inputPath: string;
   let outputDir: string;
   let registry: TokenRegistry | null = null;
+  let watchedFiles = new Set<string>();
 
   return {
     name: 'gamut-all:design-tokens',
@@ -129,11 +133,9 @@ export function designTokensPlugin(options: DesignTokensPluginOptions): Plugin {
       inputPath = resolve(config.root, options.input);
       outputDir = resolve(config.root, options.outputDir ?? './src/generated');
 
-      try {
-        registry = buildAndEmit(inputPath, outputDir, options, (msg) => config.logger.info(msg));
-      } catch (err) {
-        config.logger.error(`[design-tokens] Failed to build registry: ${String(err)}`);
-      }
+      const result = buildAndEmit(inputPath, outputDir, options, (msg) => config.logger.info(msg));
+      registry = result.registry;
+      watchedFiles = new Set(result.watchedFiles);
     },
 
     resolveId(id) {
@@ -145,7 +147,7 @@ export function designTokensPlugin(options: DesignTokensPluginOptions): Plugin {
     load(id) {
       if (id === RESOLVED_VIRTUAL_ID) {
         if (!registry) {
-          return 'export const registry = null;';
+          throw new Error('[design-tokens] Registry unavailable. Fix token build errors and restart Vite.');
         }
         const serialized = serializeRegistry(registry);
         return [
@@ -158,16 +160,24 @@ export function designTokensPlugin(options: DesignTokensPluginOptions): Plugin {
     },
 
     configureServer(server) {
-      server.watcher.add(inputPath);
+      for (const file of watchedFiles) {
+        server.watcher.add(file);
+      }
       server.watcher.on('change', (file) => {
-        if (file !== inputPath) return;
+        if (!watchedFiles.has(file)) return;
         try {
-          registry = buildAndEmit(inputPath, outputDir, options, (msg) => server.config.logger.info(msg));
+          const result = buildAndEmit(inputPath, outputDir, options, (msg) => server.config.logger.info(msg));
+          registry = result.registry;
+          watchedFiles = new Set(result.watchedFiles);
+          for (const watched of watchedFiles) {
+            server.watcher.add(watched);
+          }
           // Invalidate virtual module
           const mod = server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
           if (mod) server.moduleGraph.invalidateModule(mod);
           server.hot.send({ type: 'full-reload' });
         } catch (err) {
+          registry = null;
           server.config.logger.error(`[design-tokens] Rebuild failed: ${String(err)}`);
         }
       });
