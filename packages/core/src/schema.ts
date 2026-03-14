@@ -93,12 +93,28 @@ export function validateSchema(input: unknown): SchemaValidationResult {
   } else {
     const primitives = obj['primitives'] as Record<string, unknown>;
     for (const [rampName, steps] of Object.entries(primitives)) {
-      if (!Array.isArray(steps)) {
-        errors.push(`primitives.${rampName} must be an array`);
-      } else {
+      if (rampName.startsWith('$')) continue;
+      if (Array.isArray(steps)) {
         steps.forEach((step, i) => {
           isValidColorValue(step, `primitives.${rampName}[${i}]`, errors);
         });
+      } else if (typeof steps === 'object' && steps !== null && (steps as Record<string, unknown>)['$type'] === 'color') {
+        const group = steps as Record<string, unknown>;
+        for (const [key, val] of Object.entries(group)) {
+          if (key.startsWith('$')) continue;
+          if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+            errors.push(`primitives.${rampName}.${key} must be a W3C color token object with $value`);
+            continue;
+          }
+          const token = val as Record<string, unknown>;
+          if (!('$value' in token)) {
+            errors.push(`primitives.${rampName}.${key} must have a $value property`);
+            continue;
+          }
+          isValidColorValue(token['$value'], `primitives.${rampName}.${key}.$value`, errors);
+        }
+      } else {
+        errors.push(`primitives.${rampName} must be an array of colors or a W3C color group with $type: "color"`);
       }
     }
   }

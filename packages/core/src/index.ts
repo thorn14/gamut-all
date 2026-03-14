@@ -1,4 +1,4 @@
-export { processInput } from './processor.js';
+export { processInput, normalizePrimitives } from './processor.js';
 export { buildRegistry, validateRegistry } from './registry.js';
 export { resolveToken, resolveAllTokens } from './resolver.js';
 export { generateCSS } from './css.js';
@@ -8,6 +8,9 @@ export { apca, softClamp } from './compliance/apca.js';
 export type { CVDType, CVDOptions } from './utils/cvd.js';
 export type {
   W3CAnnotations,
+  W3CColorToken,
+  W3CColorGroup,
+  PrimitivesInput,
   ColorValue,
   ColorSpace,
   ColorComponent,

@@ -42,13 +42,47 @@
     "primitives": {
       "type": "object",
       "additionalProperties": {
-        "type": "array",
-        "items": {
-          "oneOf": [
-            { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "description": "Hex color shorthand" },
-            { "$ref": "#/$defs/ColorValue" }
-          ]
-        }
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "W3C Design Tokens color group per Format Module 2025.10. Steps are numbered keys containing color tokens with $value.",
+            "required": ["$type"],
+            "properties": {
+              "$type": { "type": "string", "const": "color" },
+              "$description": { "type": "string" },
+              "$extensions": { "type": "object", "additionalProperties": true }
+            },
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["$value"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "$value": {
+                      "oneOf": [
+                        { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+                        { "$ref": "#/$defs/ColorValue" }
+                      ]
+                    },
+                    "$description": { "type": "string" },
+                    "$extensions": { "type": "object", "additionalProperties": true }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "type": "array",
+            "description": "Legacy format: ordered array of color values (light → dark).",
+            "items": {
+              "oneOf": [
+                { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "description": "Hex color shorthand" },
+                { "$ref": "#/$defs/ColorValue" }
+              ]
+            }
+          }
+        ]
       }
     },
     "themes": {

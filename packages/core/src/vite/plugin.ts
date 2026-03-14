@@ -7,7 +7,8 @@ import { generateCSS } from '../css.js';
 import { serializeRegistry } from '../serialize.js';
 import { wcag21 } from '../compliance/wcag21.js';
 import { apca } from '../compliance/apca.js';
-import type { TokenInput, TokenRegistry, ColorValue } from '../types.js';
+import { normalizePrimitives } from '../processor.js';
+import type { TokenInput, TokenRegistry, ColorValue, PrimitivesInput } from '../types.js';
 
 const VIRTUAL_MODULE_ID = 'virtual:design-tokens';
 const RESOLVED_VIRTUAL_ID = '\0virtual:design-tokens';
@@ -57,18 +58,17 @@ function buildAndEmit(
   const tokenInput = JSON.parse(raw) as TokenInput & { $primitives?: string };
   const watchedFiles = [inputPath];
 
-  // Resolve $primitives external file
+  // Resolve $primitives external file (supports both legacy arrays and W3C Design Tokens format)
   if (tokenInput['$primitives']) {
     const primitivesPath = resolve(dirname(inputPath), tokenInput['$primitives']);
     watchedFiles.push(primitivesPath);
     const primitivesRaw = readFileSync(primitivesPath, 'utf-8');
-    const primitivesData = JSON.parse(primitivesRaw) as Record<string, (string | ColorValue)[]>;
-    // Strip JSON-schema metadata keys before merging
-    for (const key of Object.keys(primitivesData)) {
-      if (key.startsWith('$')) delete primitivesData[key];
-    }
-    // Merge: inline primitives take precedence
-    tokenInput.primitives = { ...primitivesData, ...(tokenInput.primitives ?? {}) };
+    const primitivesData = JSON.parse(primitivesRaw) as PrimitivesInput;
+    const normalized = normalizePrimitives(primitivesData);
+    const inlinePrimitives = tokenInput.primitives
+      ? normalizePrimitives(tokenInput.primitives as PrimitivesInput)
+      : {};
+    tokenInput.primitives = { ...normalized, ...inlinePrimitives };
     delete tokenInput['$primitives'];
   }
 

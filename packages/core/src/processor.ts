@@ -10,11 +10,68 @@ import type {
   ProcessedSemantic,
   ContextOverrideInput,
   StackClass,
+  ColorValue,
+  PrimitivesInput,
+  W3CColorGroup,
+  W3CColorToken,
 } from './types.js';
 
+function isW3CColorGroup(val: unknown): val is W3CColorGroup {
+  return typeof val === 'object' && val !== null && !Array.isArray(val) && (val as Record<string, unknown>)['$type'] === 'color';
+}
+
+function isW3CColorToken(val: unknown): val is W3CColorToken {
+  return typeof val === 'object' && val !== null && !Array.isArray(val) && '$value' in (val as Record<string, unknown>);
+}
+
+/**
+ * Normalizes a W3C Design Tokens color group into an ordered array of color values.
+ * Step keys can be any valid token name — numeric keys like "0", "50", "100" are
+ * sorted numerically; non-numeric keys like "light", "medium", "dark" preserve
+ * JSON insertion order. If the group mixes numeric and non-numeric keys, all
+ * entries use insertion order.
+ */
+function normalizeW3CColorGroup(group: W3CColorGroup): (string | ColorValue)[] {
+  const raw: [string, string | ColorValue][] = [];
+  for (const [key, val] of Object.entries(group)) {
+    if (key.startsWith('$')) continue;
+    if (isW3CColorToken(val)) {
+      raw.push([key, val.$value]);
+    }
+  }
+
+  const allNumeric = raw.every(([k]) => !Number.isNaN(Number(k)));
+  if (allNumeric) {
+    raw.sort((a, b) => Number(a[0]) - Number(b[0]));
+  }
+
+  return raw.map(([, v]) => v);
+}
+
+/**
+ * Normalizes primitives from either the legacy array format or W3C Design Tokens
+ * group format into the canonical Record<string, (string | ColorValue)[]> shape.
+ */
+export function normalizePrimitives(primitives: PrimitivesInput): Record<string, (string | ColorValue)[]> {
+  const result: Record<string, (string | ColorValue)[]> = {};
+  for (const [rampName, rampValue] of Object.entries(primitives)) {
+    if (rampName.startsWith('$')) continue;
+    if (Array.isArray(rampValue)) {
+      result[rampName] = rampValue;
+    } else if (isW3CColorGroup(rampValue)) {
+      result[rampName] = normalizeW3CColorGroup(rampValue);
+    }
+  }
+  return result;
+}
+
 export function processInput(input: TokenInput): ProcessedInput {
+  // 0. Normalize W3C primitives to internal array format
+  const normalizedPrimitives = normalizePrimitives(input.primitives);
+  const normalizedInput: TokenInput = { ...input, primitives: normalizedPrimitives };
+
   // 1. Validate schema — throw on errors
-  const validation = validateSchema(input as unknown);
+  const validation = validateSchema(normalizedInput as unknown);
   if (!validation.valid) {
     throw new Error(`Invalid token input:\n${validation.errors.join('\n')}`);
   }
@@ -23,7 +80,7 @@ export function processInput(input: TokenInput): ProcessedInput {
 
   // 2. Build ProcessedRamp for each primitive (ColorValue → hex → OKLCH)
   const ramps = new Map<string, ProcessedRamp>();
-  for (const [rampName, colorValues] of Object.entries(input.primitives)) {
+  for (const [rampName, colorValues] of Object.entries(normalizedPrimitives)) {
     const steps: ProcessedStep[] = colorValues.map((cv, index) => {
       const hex = colorValueToHex(cv);
       return {

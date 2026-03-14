@@ -68,6 +68,25 @@ export interface ColorValue {
   $extensions?: Record<string, unknown>;
 }
 
+// ── W3C Design Tokens Format Module 2025.10 — Primitives ────────────────────
+
+export interface W3CColorToken {
+  $value: string | ColorValue;
+  $description?: string;
+  $extensions?: Record<string, unknown>;
+}
+
+export interface W3CColorGroup {
+  $type: 'color';
+  $description?: string;
+  $extensions?: Record<string, unknown>;
+  [step: string]: W3CColorToken | string | Record<string, unknown> | undefined;
+}
+
+export type PrimitivesInput =
+  | Record<string, (string | ColorValue)[]>
+  | Record<string, W3CColorGroup>;
+
 // ── Input types ──────────────────────────────────────────────────────────────
 
 export interface TokenInput {
@@ -84,7 +103,7 @@ export interface TokenInput {
     stacks?: Partial<Record<StackClass, number>>;
     cvd?: CVDOptions;
   };
-  primitives: Record<string, (string | ColorValue)[]>;
+  primitives: PrimitivesInput;
   themes: Record<string, ThemeInput>;
   surfaces?: Record<string, SurfaceInput>;
   foreground: Record<string, SemanticInput>;
