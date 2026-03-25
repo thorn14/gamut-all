@@ -1,4 +1,4 @@
-import type { TokenInput, ColorSpace } from './types.js';
+import type { TokenInput, TokenOverridesInput, ColorSpace } from './types.js';
 
 interface SchemaValidationResult {
   valid: boolean;
@@ -379,3 +379,62 @@ function validateOverride(
 export function validateInput(input: TokenInput): SchemaValidationResult {
   return validateSchema(input as unknown);
 }
+
+export function validateOverridesInput(input: unknown): SchemaValidationResult {
+  const errors: string[] = [];
+
+  if (typeof input !== 'object' || input === null) {
+    return { valid: false, errors: ['Overrides input must be an object'] };
+  }
+
+  const obj = input as Record<string, unknown>;
+
+  if (obj['tokenOverrides'] !== undefined) {
+    if (typeof obj['tokenOverrides'] !== 'object' || Array.isArray(obj['tokenOverrides'])) {
+      errors.push('tokenOverrides must be an object');
+    } else {
+      const overrides = obj['tokenOverrides'] as Record<string, unknown>;
+      for (const [tokenName, entry] of Object.entries(overrides)) {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+          errors.push(`tokenOverrides.${tokenName} must be an object`);
+          continue;
+        }
+        const e = entry as Record<string, unknown>;
+        if (e['decorative'] !== undefined && typeof e['decorative'] !== 'boolean') {
+          errors.push(`tokenOverrides.${tokenName}.decorative must be a boolean`);
+        }
+        if (e['defaultStep'] !== undefined && (typeof e['defaultStep'] !== 'number' || !Number.isInteger(e['defaultStep']))) {
+          errors.push(`tokenOverrides.${tokenName}.defaultStep must be an integer`);
+        }
+        if (e['themes'] !== undefined) {
+          if (typeof e['themes'] !== 'object' || Array.isArray(e['themes'])) {
+            errors.push(`tokenOverrides.${tokenName}.themes must be an object`);
+          } else {
+            const themes = e['themes'] as Record<string, unknown>;
+            for (const [themeName, themeVal] of Object.entries(themes)) {
+              if (typeof themeVal !== 'object' || themeVal === null || typeof (themeVal as Record<string, unknown>)['step'] !== 'number') {
+                errors.push(`tokenOverrides.${tokenName}.themes.${themeName} must be an object with a numeric step`);
+              }
+            }
+          }
+        }
+        if (e['stacks'] !== undefined) {
+          if (typeof e['stacks'] !== 'object' || Array.isArray(e['stacks'])) {
+            errors.push(`tokenOverrides.${tokenName}.stacks must be an object`);
+          } else {
+            const stacks = e['stacks'] as Record<string, unknown>;
+            for (const [stackName, offset] of Object.entries(stacks)) {
+              if (typeof offset !== 'number' || !Number.isInteger(offset)) {
+                errors.push(`tokenOverrides.${tokenName}.stacks.${stackName} must be an integer`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export type { TokenOverridesInput };

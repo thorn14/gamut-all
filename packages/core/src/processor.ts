@@ -2,6 +2,7 @@ import { validateSchema } from './schema.js';
 import { colorValueToHex, hexToOklch, relativeLuminance } from './utils/oklch.js';
 import type {
   TokenInput,
+  TokenOverridesInput,
   ProcessedInput,
   ProcessedRamp,
   ProcessedStep,
@@ -65,7 +66,7 @@ export function normalizePrimitives(primitives: PrimitivesInput): Record<string,
   return result;
 }
 
-export function processInput(input: TokenInput): ProcessedInput {
+export function processInput(input: TokenInput, overrides?: TokenOverridesInput): ProcessedInput {
   // 0. Normalize W3C primitives to internal array format
   const normalizedPrimitives = normalizePrimitives(input.primitives);
   const normalizedInput: TokenInput = { ...input, primitives: normalizedPrimitives };
@@ -300,6 +301,51 @@ export function processInput(input: TokenInput): ProcessedInput {
 
   processSemanticsSection(input.foreground, 'text');
   processSemanticsSection(input.nonText ?? {}, 'ui-component');
+
+  // 7. Apply token overrides (post-processing fine-tuning layer)
+  if (overrides?.tokenOverrides) {
+    for (const [tokenName, entry] of Object.entries(overrides.tokenOverrides)) {
+      const sem = semantics.get(tokenName);
+      if (!sem) continue; // Unknown token — silently skip (design asset may lead main config)
+
+      if (entry.decorative === true) {
+        sem.complianceTarget = 'decorative';
+      }
+      if (entry.defaultStep !== undefined) {
+        sem.defaultStep = entry.defaultStep;
+      }
+
+      // Convert themes/stacks shorthand into ContextOverrideInput entries (appended)
+      const extraOverrides: ContextOverrideInput[] = [];
+      if (entry.themes) {
+        for (const [themeName, themeOverride] of Object.entries(entry.themes)) {
+          extraOverrides.push({ bg: themeName, step: themeOverride.step });
+        }
+      }
+      if (entry.stacks) {
+        for (const [stackName, step] of Object.entries(entry.stacks)) {
+          extraOverrides.push({ stack: stackName, step });
+        }
+      }
+
+      // Explicit overrides array replaces; themes/stacks shorthand appends
+      if (entry.overrides !== undefined) {
+        sem.overrides = [...entry.overrides, ...extraOverrides];
+      } else if (extraOverrides.length > 0) {
+        sem.overrides = [...sem.overrides, ...extraOverrides];
+      }
+
+      // Merge interactions (replace existing states, keep unmentioned states)
+      if (entry.interactions) {
+        for (const [stateName, stateInput] of Object.entries(entry.interactions)) {
+          sem.interactions[stateName] = {
+            step: stateInput.step,
+            overrides: stateInput.overrides ?? sem.interactions[stateName]?.overrides ?? [],
+          };
+        }
+      }
+    }
+  }
 
   return { ramps, themes, surfaces: processedSurfaces, semantics, stacks, config };
 }

@@ -9,6 +9,12 @@ const isDev = typeof process !== 'undefined' && process.env['NODE_ENV'] === 'dev
 
 export { useTokenContextValue as useTokenContext };
 
+/** Returns the current contrast mode and a setter. Persisted to localStorage. */
+export function useContrastMode(): [import('./context.js').ContrastMode, (mode: import('./context.js').ContrastMode) => void] {
+  const { contrastMode, setContrastMode } = useTokenContextValue();
+  return [contrastMode, setContrastMode];
+}
+
 export function useDesignContext(ref: RefObject<Element | null>): DesignContext | null {
   const { defaultBg, visionMode } = useTokenContextValue();
   const [context, setContext] = useState<DesignContext | null>(null);

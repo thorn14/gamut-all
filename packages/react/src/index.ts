@@ -11,6 +11,7 @@ export {
   useTokenColor,
   useDesignContext,
   useTokenContext,
+  useContrastMode,
 } from './hooks.js';
-export type { TokenContextValue } from './context.js';
+export type { TokenContextValue, ContrastMode } from './context.js';
 export { warnMissingDataTheme, checkDataThemeCoverage } from './audit-helpers.js';

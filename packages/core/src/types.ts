@@ -275,6 +275,25 @@ export interface ComplianceEngine {
   preferredDirection?(bgHex: string): 'lighter' | 'darker' | 'either';
 }
 
+// ── Overrides layer ──────────────────────────────────────────────────────────
+
+/** Per-token fine-tuning applied after the main token config is processed.
+ *  Typically loaded from a separate overrides.json file so designers can
+ *  pin steps, mark tokens as decorative, or apply per-theme/per-stack offsets
+ *  without touching the core token definitions. */
+export interface TokenOverrideEntry {
+  decorative?: boolean;
+  defaultStep?: number;
+  themes?: Record<string, { step: number }>;
+  stacks?: Record<string, number>;
+  overrides?: ContextOverrideInput[];
+  interactions?: Record<string, { step: number; overrides?: ContextOverrideInput[] }>;
+}
+
+export interface TokenOverridesInput {
+  tokenOverrides?: Record<string, TokenOverrideEntry>;
+}
+
 // ── Validation ───────────────────────────────────────────────────────────────
 
 export interface ValidationResult {

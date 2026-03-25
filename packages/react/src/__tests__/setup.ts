@@ -1,5 +1,10 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
+
+// Clear localStorage between tests so TokenProvider persistence doesn't bleed across
+beforeEach(() => {
+  localStorage.clear();
+});
 
 // Mock ResizeObserver
 global.ResizeObserver = vi.fn().mockImplementation(() => ({

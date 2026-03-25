@@ -25,7 +25,23 @@ function camelToKebab(str: string): string {
 
 // ── generateCSS ──────────────────────────────────────────────────────────────
 
-export function generateCSS(registry: TokenRegistry): string {
+export interface GenerateCSSOptions {
+  /**
+   * `'full'` (default) emits all tokens for every selector block.
+   * `'delta'` emits only tokens that differ from `baseRegistry`.
+   * Useful for generating a small AAA override stylesheet.
+   */
+  mode?: 'full' | 'delta';
+  /**
+   * Required when `mode` is `'delta'`. Tokens are compared against this
+   * registry and only changed values are emitted.
+   */
+  baseRegistry?: TokenRegistry;
+}
+
+export function generateCSS(registry: TokenRegistry, options?: GenerateCSSOptions): string {
+  const mode = options?.mode ?? 'full';
+  const baseRegistry = options?.baseRegistry;
   // Collect all distinct token names
   const tokenNames = new Set<string>();
   for (const key of registry.variantMap.keys()) {
@@ -67,64 +83,93 @@ export function generateCSS(registry: TokenRegistry): string {
     return out;
   }
 
+  // ── Helper: filter a values map against baseRegistry for delta mode ────────
+  function filterDelta(
+    values: Map<string, string>,
+    bgName: string,
+    stack: string,
+    vision: VisionMode,
+  ): Map<string, string> {
+    if (mode !== 'delta' || !baseRegistry) return values;
+    const out = new Map<string, string>();
+    for (const [tokenName, hex] of values) {
+      const baseHex = resolveToken(tokenName, {
+        fontSize: repFontSize,
+        bgClass: bgName,
+        stackDepth: stack,
+        visionMode: vision,
+      }, baseRegistry);
+      if (hex !== baseHex) out.set(tokenName, hex);
+    }
+    return out;
+  }
+
   // ── :root block ────────────────────────────────────────────────────────────
   const rootValues = resolveAll(defaultTheme, 'root', 'default');
+  const rootDelta = filterDelta(rootValues, defaultTheme, 'root', 'default');
   const rootVars: string[] = [];
 
-  for (const [tokenName, hex] of rootValues) {
+  for (const [tokenName, hex] of rootDelta) {
     rootVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
   }
-  rootVars.push('');
+  if (mode !== 'delta') {
+    rootVars.push('');
 
-  // --bg-surface for root stack of default theme
-  const defaultThemeData = registry.themes.get(defaultTheme);
-  const rootSurface = defaultThemeData?.surfaces.get('root');
-  rootVars.push(`  --bg-surface: ${rootSurface ? `var(--${defaultThemeData!.ramp}-${rootSurface.step})` : `var(--bg-${defaultTheme})`};`);
-  rootVars.push('');
+    // --bg-surface for root stack of default theme
+    const defaultThemeData = registry.themes.get(defaultTheme);
+    const rootSurface = defaultThemeData?.surfaces.get('root');
+    rootVars.push(`  --bg-surface: ${rootSurface ? `var(--${defaultThemeData!.ramp}-${rootSurface.step})` : `var(--bg-${defaultTheme})`};`);
+    rootVars.push('');
 
-  // --bg-* vars for themes
-  for (const [themeName, theme] of registry.themes) {
-    rootVars.push(`  --bg-${themeName}: ${theme.hex};`);
-  }
-  rootVars.push('');
+    // --bg-* vars for themes
+    for (const [themeName, theme] of registry.themes) {
+      rootVars.push(`  --bg-${themeName}: ${theme.hex};`);
+    }
+    rootVars.push('');
 
-  // --bg-{surface} vars (and interaction states)
-  for (const [surfaceName, surface] of registry.surfaces) {
-    rootVars.push(`  ${tokenToCssVar(surfaceName)}: ${surface.hex};`);
-    for (const [state, stateData] of Object.entries(surface.interactions)) {
-      rootVars.push(`  ${tokenToCssVar(`${surfaceName}-${state}`)}: ${stateData.hex};`);
+    // --bg-{surface} vars (and interaction states)
+    for (const [surfaceName, surface] of registry.surfaces) {
+      rootVars.push(`  ${tokenToCssVar(surfaceName)}: ${surface.hex};`);
+      for (const [state, stateData] of Object.entries(surface.interactions)) {
+        rootVars.push(`  ${tokenToCssVar(`${surfaceName}-${state}`)}: ${stateData.hex};`);
+      }
+    }
+    rootVars.push('');
+
+    // --{ramp}-{step} vars
+    for (const [rampName, ramp] of registry.ramps) {
+      for (const step of ramp.steps) {
+        rootVars.push(`  --${rampName}-${step.index}: ${step.hex};`);
+      }
     }
   }
-  rootVars.push('');
 
-  // --{ramp}-{step} vars
-  for (const [rampName, ramp] of registry.ramps) {
-    for (const step of ramp.steps) {
-      rootVars.push(`  --${rampName}-${step.index}: ${step.hex};`);
-    }
+  if (rootVars.length > 0) {
+    lines.push(':root {');
+    lines.push(...rootVars);
+    lines.push('}');
+    lines.push('');
   }
-
-  lines.push(':root {');
-  lines.push(...rootVars);
-  lines.push('}');
-  lines.push('');
 
   // ── [data-theme="X"] blocks — non-default themes, root stack ──────────────
   for (const [themeName, theme] of registry.themes) {
     if (themeName === defaultTheme) continue;
 
     const bgValues = resolveAll(themeName, 'root', 'default');
+    const bgDelta = filterDelta(bgValues, themeName, 'root', 'default');
     const bgVars: string[] = [];
 
-    for (const [tokenName, hex] of bgValues) {
-      if (hex !== rootValues.get(tokenName)) {
+    for (const [tokenName, hex] of bgDelta) {
+      if (mode === 'delta' || hex !== rootValues.get(tokenName)) {
         bgVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
       }
     }
 
-    // --bg-surface for this theme at root stack
-    const themeRootSurface = theme.surfaces.get('root');
-    bgVars.push(`  --bg-surface: ${themeRootSurface ? `var(--${theme.ramp}-${themeRootSurface.step})` : `var(--bg-${themeName})`};`);
+    // --bg-surface for this theme at root stack (not emitted in delta mode — surfaces don't change between AA/AAA)
+    if (mode !== 'delta') {
+      const themeRootSurface = theme.surfaces.get('root');
+      bgVars.push(`  --bg-surface: ${themeRootSurface ? `var(--${theme.ramp}-${themeRootSurface.step})` : `var(--bg-${themeName})`};`);
+    }
 
     // Surface vars for this theme: explicit override > auto-mirror > skip
     // Auto-mirror: when the surface ramp matches the theme ramp and the theme is dark
@@ -170,18 +215,22 @@ export function generateCSS(registry: TokenRegistry): string {
 
     for (const stack of nonRootStacks) {
       const stackValues = resolveAll(themeName, stack, 'default');
+      const stackDelta = filterDelta(stackValues, themeName, stack, 'default');
       const stackVars: string[] = [];
 
-      for (const [tokenName, hex] of stackValues) {
-        if (hex !== rootStackValues.get(tokenName)) {
+      for (const [tokenName, hex] of stackDelta) {
+        if (mode === 'delta' || hex !== rootStackValues.get(tokenName)) {
           stackVars.push(`  ${tokenToCssVar(tokenName)}: ${hex};`);
         }
       }
 
       // --bg-surface always emitted so components can use background: var(--bg-surface)
-      const surface = theme.surfaces.get(stack);
-      if (surface) {
-        stackVars.push(`  --bg-surface: var(--${theme.ramp}-${surface.step});`);
+      // Not emitted in delta mode — surfaces don't change between AA/AAA
+      if (mode !== 'delta') {
+        const surface = theme.surfaces.get(stack);
+        if (surface) {
+          stackVars.push(`  --bg-surface: var(--${theme.ramp}-${surface.step});`);
+        }
       }
 
       if (stackVars.length > 0) {

@@ -1,0 +1,32 @@
+{
+  "name": "@gamut-all/tailwind",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@gamut-all/core": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@gamut-all/core": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.5"
+  }
+}
